@@ -17,10 +17,13 @@ Anyone cloning this repo can immediately start coding with automatic syncing int
 
 ## ⚡ Quickstart
 
+Before starting, ensure Node.js (LTS recommended) is installed:
+https://nodejs.org/
+
 Clone the repo:
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/Macroger/BitBurner-External-Editor-Sync-Plugin.git
 cd <your-project-folder>
 ```
 
@@ -36,7 +39,7 @@ Start the development watcher:
 npm run dev
 ```
 
-Launch Bitburner and your scripts will sync automatically.
+Launch Bitburner and your scripts will sync automatically. Status updates regarding file syncing will be provided in the terminal.
 
 **Windows users:**  
 You can instead use the included `Start-Bitburner-With-Sync.bat` script to launch *both* Bitburner (via Steam) and the sync server automatically (details below).
