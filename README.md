@@ -146,7 +146,7 @@ The external editor plugin syncs these files directly into Bitburner’s interna
 
 ## 📦 Requirements
 
-- Node.js (LTS recommended)  
+- Node.js (required — the sync server and build system run on Node)  
 - Bitburner (Steam or browser)  
 - The bb-external-editor extension installed in Bitburner  
 - Windows (optional, for the convenience script)
@@ -155,7 +155,7 @@ The external editor plugin syncs these files directly into Bitburner’s interna
 
 ## 📝 Credits
 
-This project is based on the excellent **bb-external-editor** template by  
+This project is based on the **bb-external-editor** template by  
 **@shyguy1412**  
 https://github.com/shyguy1412/bb-external-editor
 
