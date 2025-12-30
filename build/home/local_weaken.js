@@ -1,0 +1,10 @@
+// servers/home/local_weaken.js
+async function main(ns) {
+  const target = ns.args[0];
+  while (true) {
+    await ns.weaken(target);
+  }
+}
+export {
+  main
+};
