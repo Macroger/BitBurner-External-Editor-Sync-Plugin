@@ -1,208 +1,162 @@
-# bb-external-editor
+# Bitburner External Editor Project
 
-This is a template for using any external editor for Bitburner. This Template supports JS, JSX, TS and TSX out of the box.
+This repository contains my personal Bitburner development environment using the **bb-external-editor** workflow. It provides a clean, local‑first setup for writing, organizing, and maintaining Bitburner scripts with full TypeScript and module support.
 
-## How to get started (choose one method)
+Anyone cloning this repo can immediately start coding with automatic syncing into the game.
 
-### Cloning this Repo
+---
 
-1. If you dont already have it installed, install [NodeJS](https://nodejs.org) v20 or newer
-1. Clone this repository `git clone https://github.com/shyguy1412/bb-external-editor`
-1. navigate to the template inside your console `cd bb-external-editor`
-1. run `npm install` in your console to install all dependencies
-   - this template is not always up to date with the actual tool. To make sure you get the newest release run `npm install esbuild-bitburner-plugin@latest`
-1. run `npm start` in your console to start the RemoteAPI server
-1. open Bitburner and navigate to the settings
-1. open the tab labeled 'Remote API' and enter the port '12525'
-1. press connect
-## File Hierarchy
+## 🏷️ Badges
 
-The destination server of your scripts is determined by their file hierarchy. The file hierarchy consists of a basepath (default `/servers`), a server name and the script path.  
-This means a file with the path `servers/home/lib/utils.ts` will be placed on the home server, in the lib folder as utils.js while a file with the path `servers/pserv-1/hack.ts` would be placed on pserv-1 as `hack.js`.  
-If a server does not exist a warning will be printed to the console.
+![Node.js](https://img.shields.io/badge/Node.js-LTS-green)
+![Bitburner](https://img.shields.io/badge/Bitburner-External%20Editor-blue)
+![TypeScript](https://img.shields.io/badge/TypeScript-Enabled-3178C6)
+![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Steam-lightgrey)
 
-Now any changes made to scripts inside the server folders will automatically be uploaded to Bitburner.
+---
 
-For more in-depth details and a full list of options have a look at the [plugin](https://github.com/shyguy1412/esbuild-bitburner-plugin) powering this template!
+## ⚡ Quickstart
 
-## Features
+Clone the repo:
 
-### esbuild
-
-This template uses [esbuild](https://esbuild.github.io/) to bundle your scripts.
-
-### Using React
-
-This template allows you to use the ingame instances of `React` and `ReactDOM` simply by importing them as ESModule as you usually would.
-
-```jsx
-import React, {useState} from 'react';
-
-export function MyComponent(){
-  const [count, setCount] = useState(0);
-
-  return <div>Count {count} <button onClick={() => setCount(count + 1)}>Add to count</button></div>;
-}
-
+```bash
+git clone <your-repo-url>
+cd <your-project-folder>
 ```
 
-### Developing on multiple servers
+Install dependencies:
 
-Simply create a new folder with the name of the server you want to develop on in the 'servers' directory to start developing on that server!
-
-### Bidirectional Mirroring
-
-You can enable mirroring like this  
-
-```js
-const createContext = async () => await context({
-  entryPoints: [
-    'servers/**/*.js',
-    'servers/**/*.jsx',
-    'servers/**/*.ts',
-    'servers/**/*.tsx',
-  ],
-  outbase: "./servers",
-  outdir: "./build",
-  plugins: [BitburnerPlugin({
-    port: 12525,
-    types: 'NetscriptDefinitions.d.ts',
-    mirror: {
-      'local/path': ['home', 'and/or other servers']
-    }
-  })],
-  bundle: true,
-  format: 'esm',
-  platform: 'browser',
-  logLevel: 'info'
-});
-
-let ctx = await createContext();
-ctx.watch();
+```bash
+npm install
 ```
 
-This will mirror all listed servers for a path to a specified location.
-While mirroring, all changes in the game will be synced with your editor and vice versa.
+Start the development watcher:
 
-### Automatic Distribution
-
-You can specify folders with a list of servers to automatically distribute your files to these servers like this:
-
-```js
-const createContext = async () => await context({
-  entryPoints: [
-    'servers/**/*.js',
-    'servers/**/*.jsx',
-    'servers/**/*.ts',
-    'servers/**/*.tsx',
-  ],
-  outbase: "./servers",
-  outdir: "./build",
-  plugins: [BitburnerPlugin({
-    port: 12525,
-    types: 'NetscriptDefinitions.d.ts',
-    distribute: {
-      'build/home/dist': ['server-1', 'server-2', 'server-3']
-    }
-  })],
-  bundle: true,
-  format: 'esm',
-  platform: 'browser',
-  logLevel: 'info'
-});
-
-let ctx = await createContext();
-ctx.watch();
-
+```bash
+npm run dev
 ```
 
-In this example all files that are developed in 'servers/home/dist' will not only be uploaded to 'home' but also 'server-1', 'server-2' and 'server-3'.
+Launch Bitburner and your scripts will sync automatically.
 
-### Plugin Extensions
+**Windows users:**  
+You can instead use the included `Start-Bitburner-With-Sync.bat` script to launch *both* Bitburner (via Steam) and the sync server automatically (details below).
 
-You can provide plugin extensions with hooks that trigger before and after certain events. Within hooks that gurantee that the plugin is connected to the game, you also get full access to the remote file API. Using extensions would look something like this:
+---
 
-```js
-import { context } from 'esbuild';
-import { BitburnerPlugin } from 'esbuild-bitburner-plugin';
+## 🚀 Features
 
-/** @type import('esbuild-bitburner-plugin').PluginExtension*/
-const customExtension = {
-  setup() { console.log('setup'); }, //Run once on plugin startup
+- Local folder structure that mirrors Bitburner’s internal server layout  
+- Automatic syncing between local files and the game  
+- Full TypeScript support via esbuild  
+- Modular script organization with nested directories  
+- Zero manual file copying  
+- A Windows startup script that launches Bitburner via Steam and automatically manages the sync server lifecycle  
 
-  beforeConnect() { console.log('beforeConnect'); }, //Run once before the game connects
-  afterConnect(remoteAPI) { console.log('afterConnect'); }, //Run every time after the game (re)connects
+---
 
-  beforeBuild() { console.log('beforeBuild'); }, //Run before every build process
-  afterBuild(remoteAPI) { console.log('afterBuild'); }, //Run after build results have been uploaded into the game
-};
+## 🧠 How the Folder Mapping Works
 
-const createContext = async () => await context({
-  entryPoints: [
-    'servers/**/*.js',
-    'servers/**/*.jsx',
-    'servers/**/*.ts',
-    'servers/**/*.tsx',
-  ],
-  outbase: "./servers",
-  outdir: "./build",
-  plugins: [
-    BitburnerPlugin({
-      port: 12525,
-      types: 'NetscriptDefinitions.d.ts',
-      extensions: [customExtension]
-    })
-  ],
-  bundle: true,
-  format: 'esm',
-  platform: 'browser',
-  logLevel: 'info'
-});
+The `servers/` directory in this repo directly maps to Bitburner’s internal virtual filesystem.
 
-let ctx = await createContext();
-ctx.watch();
+You can create subdirectories under `servers/` to target **any server that exists in the game**, not just `home`.
+
+For example:
 
 ```
-
-## Remote Debugging
-
-This tool supports remote debugging for both the Steam version and the web version running in a Chrome/Chromium browser.
-
-```js
-const createContext = async () => await context({
-  entryPoints: [
-    'servers/**/*.js',
-    'servers/**/*.jsx',
-    'servers/**/*.ts',
-    'servers/**/*.tsx',
-  ],
-  outbase: "./servers",
-  outdir: "./build",
-  plugins: [
-    BitburnerPlugin({
-      port: 12525,
-      types: 'NetscriptDefinitions.d.ts',
-      remoteDebugging: true
-    })
-  ],
-  bundle: true,
-  format: 'esm',
-  platform: 'browser',
-  logLevel: 'info'
-});
-
-const ctx = await createContext();
-ctx.watch();
+servers/home/hack.ts
+servers/n00dles/early-grow.ts
+servers/foodnstuff/utility/scan.ts
 ```
 
-### Steam
+These become, inside Bitburner:
 
-To enable remote debugging for the Steam version go into the properties for Bitburner (little cogwheel to the right when viewing Bitburner in your library) and add the following launch option `--remote-debugging-port=9222`.
-
-### Chrome/Chromium
-
-To enable remote debugging for your browser you need to launch it over the commandline like so:
-
-```sh
-<path-to-chrome> --remote-debugging-port=9222
 ```
+/hack.js                 on home
+/early-grow.js           on n00dles
+/utility/scan.js         on foodnstuff
+```
+
+I personally keep all my scripts under `servers/home/`, but the system fully supports multi‑server organization if you prefer a more distributed layout.
+
+---
+
+## ▶️ Windows Convenience Script
+
+This project includes a Windows batch script (`Start-Bitburner-With-Sync.bat`) that provides a fully automated development workflow.
+
+### What the script does
+
+The script:
+
+1. Opens a terminal titled **bitburner-sync-server**
+2. Navigates to your project directory
+3. Starts the sync server (`npm start`) *in the same terminal*
+4. Detects the PID of the sync server’s `node.exe` process
+5. Launches Bitburner via Steam (`steam://rungameid/1812820`)
+6. Waits for Bitburner to fully start
+7. Monitors Bitburner until it closes
+8. Automatically terminates the sync server when Bitburner exits
+9. Closes the terminal if launched from Explorer
+
+### Why this is useful
+
+- No leftover Node processes  
+- No need to manually start or stop anything  
+- One double‑click launches your entire game and dev environment  
+- Clean shutdown every time  
+
+### Running it
+
+Double‑click:
+
+```
+Start-Bitburner-With-Sync.bat
+```
+
+Or run from a terminal:
+
+```bash
+Start-Bitburner-With-Sync.bat
+```
+
+---
+
+## 📁 Project Structure
+
+```
+servers/
+  home/
+    *.ts        # Your Bitburner scripts
+    lib/        # Optional shared utilities
+
+Start-Bitburner-With-Sync.bat
+esbuild.config.js
+package.json
+package-lock.json
+README.md
+```
+
+The `servers/` directory is the source of truth.  
+The external editor plugin syncs these files directly into Bitburner’s internal filesystem.
+
+---
+
+## 📦 Requirements
+
+- Node.js (LTS recommended)  
+- Bitburner (Steam or browser)  
+- The bb-external-editor extension installed in Bitburner  
+- Windows (optional, for the convenience script)
+
+---
+
+## 📝 Credits
+
+This project is based on the excellent **bb-external-editor** template by  
+**@shyguy1412**  
+https://github.com/shyguy1412/bb-external-editor
+
+Their work made this workflow possible.
+
+---
+
