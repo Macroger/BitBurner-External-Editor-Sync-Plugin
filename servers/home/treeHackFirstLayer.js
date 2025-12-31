@@ -217,7 +217,7 @@ export async function main(ns)
     }
     else if(serverCurrentSecurityLevel < serverSecurityLowerThreshold)
     {
-      // Server secuirity rating is at or below 25%. Check for the script and
+      // Server security rating is at or below 25%. Check for the script and
       // issue a stop command if still running.
       ns.printf("Server security level below lower threshold, entering section to kill weaken script.");
 
@@ -240,9 +240,7 @@ export async function main(ns)
       // If the script is not running, it is likely being hacked or grown, so again do nothing. 
       // I have discovered a fringe case that may need to be addressed here. 
       // n00dles has a security min of 1, and a base value of 1.
-      ns.printf("This server has entered the security goldylocks zone.");
-
-      
+      ns.printf("This server has entered the security goldylocks zone.");     
     }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////

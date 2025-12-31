@@ -34,7 +34,7 @@ export async function main(ns) {
   if(useValidate == true)
   {
     const servers = scanForServers(ns, startingPoint);
-    ns.tprintf("Detected %d un-validated servers", servers.length);
+    ns.tprintf("INFO: Detected %d un-validated servers", servers.length);
     validatedServerList = getValidServerList(ns, servers);
     ns.tprintf("SUCCESS: Found %d validated servers, sniffing those servers...", validatedServerList.length);
   }

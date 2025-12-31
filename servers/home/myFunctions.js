@@ -1,4 +1,15 @@
 /** @param {NS} ns */
+
+
+  /**
+   *  This function calculates and returns the growth rate multiplier required to grow
+   *  the target server's money from its current amount to its maximum amount.
+   *
+   * @export
+   * @param {*} ns - The Bitburner Netscript API object.
+   * @param {*} target - The hostname of the server to target.
+   * @return {number} - A number representing the growth rate multiplier required to grow the server's money.
+   */
   export function calculateGrowthRateMultiplier(ns, target)
   {
     const serverMaxMoney = ns.getServerMaxMoney(target)
@@ -17,6 +28,18 @@
     return (returnValue);
   }
 
+  /**
+   * Ensures that a script file exists on the target server, copying it over if necessary.
+   *
+   * @param {NS} ns - The Bitburner Netscript API object.
+   * @param {string} script - The name of the script file to check/copy.
+   * @param {string} target - The hostname of the server to check/copy the script to.
+   * @returns {boolean} True if the script exists or was successfully copied; false if the copy failed.
+   *
+   * @example
+   * // Ensure "hack.js" is present on "n00dles"
+   * const success = ensureScriptExists(ns, "hack.js", "n00dles");
+   */
   export function ensureScriptExists(ns, script, target)
   {
     const fileExists = ns.fileExists(script, target);
@@ -46,14 +69,21 @@
     return fileTransferResult;
   }
 
+
+  /**
+   * Attempts to gain root access on the specified target server by using available hacking programs. 
+   *
+   * @export
+   * @param {*} ns - The Bitburner Netscript API object.
+   * @param {*} target - The hostname of the server to gain root access on.
+   * @return {boolean} - A boolean indicating whether root access was successfully obtained.
+   */
   export function getRootAccess(ns, target)
   {
     const portsRequired = ns.getServerNumPortsRequired(target);
     let nukeRequired = false;
     const numCrackingProgramsAvailable = getNumCrackingPrograms(ns);
 
-    // I currently have access to 2 cracking programs, so I can open up servers
-    // that have 2 or less ports to open.
     if(portsRequired <= numCrackingProgramsAvailable)
     {
       switch(portsRequired)
@@ -87,6 +117,18 @@
     return ns.hasRootAccess(target);   
   }
 
+
+  /**
+   * Calculates the number of threads that could be opened on the target server for a given script.
+   *
+   * @export
+   * @param {*} ns - The Bitburner Netscript API object.
+   * @param {*} scriptName - The name of the script to be executed.
+   * @param {*} target - The hostname of the server on which to calculate available threads.
+   * @param {number} [reserveThreads=0] - The number of threads to reserve and not use.
+   * @return {number} - The number of threads that can be opened on the target server for the specified script,
+   * excluding any reserved threads.
+   */
   export function getNumThreadsPossible(ns, scriptName, target, reserveThreads = 0)
   {
     const functionName = "getNumThreadsPossible";
@@ -127,6 +169,21 @@
     return numThreads;
   }
 
+
+  
+  /**
+   * Launches a script attack on a target server using the specified script.
+   *
+   * @export
+   * @param {*} ns - The Bitburner Netscript API object.
+   * @param {string} scriptName - The name of the script to be executed.
+   * @param {*} target - The hostname of the server to attack.
+   * @param {*} source - The hostname of the server from which the attack is launched.
+   * @param {*} goal - The goal value for the attack.
+   * @param {number} [reserveThreads=0] - The number of threads to reserve and not use.
+   * @param {boolean} [localMode=false] - Whether to calculate threads on the local (home) server.
+   * @return {boolean} - A boolean indicating whether the attack was successfully launched.
+   */
   export function launchScriptAttack(ns, scriptName, target, source, goal, reserveThreads=0, localMode=false)
   {
     const sectionName = "launchScriptAttack";
@@ -384,15 +441,20 @@
     return result;
   }
 
-  /*
-  **  Function Name: validateServerList        
-  **  Parameter(s):  ns: I *think* this is a reference to the main game thread / object, required to run game functions.
-  **                 number MinMoney: A number representing the minimum max money a server should have.
-  **                 number minGrowRate: A number representing the minimum grow rate a server should have.
-  **  Returns:       Array [string]: Returns an array of strings containing the hostnames of validated servers.
-  **  Description:   This function uses a variety of conditions to test against each server and creates
-  **                 and returns an array of strings containing the host names of servers that passed validation.
-  */
+
+  /**
+   * This function uses a variety of conditions to test against each server and returns an
+   * array of strings containing the host names of servers that passed validation.
+   *
+   * @export
+   * @param {*} ns - The Bitburner Netscript API object.
+   * @param {*} serverList - An array of server hostnames to validate.
+   * @param {number} [minMoney=1] - The minimum max money a server should have.
+   * @param {number} [minGrowRate=1] - The minimum grow rate a server should have.
+   * @param {boolean} [requiresRAM=false] - Whether to only include servers that have RAM.
+   * @param {boolean} [requiresNoRam=false] - Whether to only include servers that do not have RAM.
+   * @return {string[]} - An array of strings containing the hostnames of validated servers.
+   */
   export function getValidServerList(ns, serverList, minMoney=1, minGrowRate=1, requiresRAM=false, requiresNoRam=false)
   {
     // An array which will be filled in with validated servers.
