@@ -7,7 +7,7 @@ title bitburner-sync-server
 echo Script started
 
 :: Change directory to your project
-cd "C:\Family Data Backup\Code\bb-external-editor"
+cd "C:\Family Data Backup\Code\BitBurner External Editor Sync Plugin"
 
 echo Starting sync server in this window...
 

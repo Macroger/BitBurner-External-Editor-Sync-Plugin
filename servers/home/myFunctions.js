@@ -522,7 +522,7 @@
   }
 
   /*
-  **  Function Name: scanForServers        
+  **  Function Name: scanForAllServers        
   **  Parameter(s):  String: startingPoint - starting server name.
   **                 ns: I think this is a reference to the main game thread, required to run game functions.
   **  Returns:       String[]:  An array of strings representing names of servers found. 
@@ -530,6 +530,51 @@
   **                 It detects duplicates and prevents them from occuring. It also scans two layers deep by
   **                 building the first list of targets, then using that list to scan again. 
   */
+   export function scanForAllServers(ns)
+  {
+    let serverList = [];
+    const startingPoint = "home";
+    serverList.push(startingPoint);
+    const servers = ns.scan(startingPoint);
+
+    if(servers.length == 0)
+    {
+      return serverList;
+    }
+
+    while(true)
+    {      
+      for(let target of servers)
+      {
+        if(serverList.indexOf(target) === -1)
+        {
+          serverList.push(target);              
+        }
+      }
+    }
+    for(let target of servers)
+    {
+      if(serverList.indexOf(target) === -1)
+      {
+        serverList.push(target);              
+      }
+    }
+
+    for(let x of serverList)
+    {
+      const newServers = ns.scan(x);
+      for(let newServerTarget of newServers)
+      {
+        if(serverList.indexOf(newServerTarget) === -1)
+        {
+          serverList.push(newServerTarget);        
+        }        
+      }        
+    }
+
+    return serverList;
+  }
+  
   export function scanForServers(ns, startingPoint="home")
   {
     let serverList = [];
@@ -557,3 +602,9 @@
 
     return serverList;
   }
+
+  // Scan for servers connected to home.
+  // Place found servers into an array.
+  // Iterate through array, and scan again - using each found server as a new starting point.
+  // Prevent duplicates from being added to the list.
+  // If no new connections are found for a server

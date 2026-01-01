@@ -230,6 +230,36 @@ function getValidServerList(ns, serverList, minMoney = 1, minGrowRate = 1, requi
   }
   return validatedServerList;
 }
+function scanForAllServers(ns) {
+  let serverList = [];
+  const startingPoint = "home";
+  serverList.push(startingPoint);
+  const servers = ns.scan(startingPoint);
+  if (servers.length == 0) {
+    return serverList;
+  }
+  while (true) {
+    for (let target of servers) {
+      if (serverList.indexOf(target) === -1) {
+        serverList.push(target);
+      }
+    }
+  }
+  for (let target of servers) {
+    if (serverList.indexOf(target) === -1) {
+      serverList.push(target);
+    }
+  }
+  for (let x of serverList) {
+    const newServers = ns.scan(x);
+    for (let newServerTarget of newServers) {
+      if (serverList.indexOf(newServerTarget) === -1) {
+        serverList.push(newServerTarget);
+      }
+    }
+  }
+  return serverList;
+}
 function scanForServers(ns, startingPoint = "home") {
   let serverList = [];
   const servers = ns.scan(startingPoint);
@@ -258,6 +288,7 @@ export {
   getRootAccess,
   getValidServerList,
   launchScriptAttack,
+  scanForAllServers,
   scanForServers,
   validateServer
 };
