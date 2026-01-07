@@ -180,23 +180,26 @@ function getValidServerList(ns, serverList, minMoney = 1, minGrowRate = 1, requi
   }
   return validatedServerList;
 }
-function scanForServers(ns, startingPoint = "home") {
-  let serverList = [];
-  const servers = ns.scan(startingPoint);
-  for (let target of servers) {
-    if (serverList.indexOf(target) === -1) {
-      serverList.push(target);
-    }
-  }
-  for (let x of serverList) {
-    const newServers = ns.scan(x);
-    for (let newServerTarget of newServers) {
-      if (serverList.indexOf(newServerTarget) === -1) {
-        serverList.push(newServerTarget);
+function scanForAllServers(ns, startingPoint = "home") {
+  const serverMap = /* @__PURE__ */ new Map();
+  const queue = [];
+  serverMap.set(startingPoint, { name: startingPoint, scanned: false, parent: null });
+  queue.push(startingPoint);
+  while (queue.length > 0) {
+    const current = queue.shift();
+    const serverObj = serverMap.get(current);
+    if (!serverObj.scanned) {
+      const neighbors = ns.scan(current);
+      for (const neighbor of neighbors) {
+        if (!serverMap.has(neighbor)) {
+          serverMap.set(neighbor, { name: neighbor, scanned: false, parent: current });
+          queue.push(neighbor);
+        }
       }
+      serverObj.scanned = true;
     }
   }
-  return serverList;
+  return Array.from(serverMap.values());
 }
 
 // servers/home/overmind.js
@@ -206,7 +209,7 @@ async function main(ns) {
   const hackScript = "hack.js";
   const sleepTime = 3e3;
   while (true) {
-    const validatedServersList = getValidServerList(ns, scanForServers(ns), 1, 1, true, false);
+    const validatedServersList = getValidServerList(ns, scanForAllServers(ns), 1, 1, true, false);
     for (let target of validatedServersList) {
       let sectionName = "ScanSection";
       if (ns.hasRootAccess(target) == false) {

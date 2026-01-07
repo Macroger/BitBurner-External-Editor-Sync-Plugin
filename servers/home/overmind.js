@@ -1,5 +1,5 @@
 /** @param {NS} ns */
-import {scanForServers, getValidServerList, launchScriptAttack,
+import {scanForAllServers, getValidServerList, launchScriptAttack,
  ensureScriptExists, getRootAccess, calculateGrowthRateMultiplier} from "./myFunctions.js";
 export async function main(ns) 
 { 
@@ -11,7 +11,7 @@ export async function main(ns)
 
   while(true)
   {   
-    const validatedServersList = getValidServerList(ns, scanForServers(ns), 1, 1, true, false);
+    const validatedServersList = getValidServerList(ns, scanForAllServers(ns), 1, 1, true, false);
     for(let target of validatedServersList)
     {      
       let sectionName = "ScanSection";

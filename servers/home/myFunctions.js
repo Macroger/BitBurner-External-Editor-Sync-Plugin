@@ -179,7 +179,7 @@
    * @param {string} scriptName - The name of the script to be executed.
    * @param {*} target - The hostname of the server to attack.
    * @param {*} source - The hostname of the server from which the attack is launched.
-   * @param {*} goal - The goal value for the attack.
+   * @param {*} goal - The goal value for the attack. This could represent money to hack, security to weaken, etc.
    * @param {number} [reserveThreads=0] - The number of threads to reserve and not use.
    * @param {boolean} [localMode=false] - Whether to calculate threads on the local (home) server.
    * @return {boolean} - A boolean indicating whether the attack was successfully launched.
@@ -521,59 +521,58 @@
     return validatedServerList;
   }
 
-  /*
-  **  Function Name: scanForAllServers        
-  **  Parameter(s):  String: startingPoint - starting server name.
-  **                 ns: I think this is a reference to the main game thread, required to run game functions.
-  **  Returns:       String[]:  An array of strings representing names of servers found. 
-  **  Description:   This function builds a list of servers by scanning from an inital starting point.
-  **                 It detects duplicates and prevents them from occuring. It also scans two layers deep by
-  **                 building the first list of targets, then using that list to scan again. 
-  */
-   export function scanForAllServers(ns)
+
+/**
+ * Scans the entire network, returning an array of server objects with parent info for path reconstruction.
+ * Each object: { name: string, scanned: boolean, parent: string|null }
+ * @param {NS} ns
+ * @param {string} [startingPoint="home"]
+ * @returns {Array<{name: string, scanned: boolean, parent: string|null}>}
+ */
+export function scanForAllServers(ns, startingPoint = "home") {
+  // Map: server name -> server object
+  const serverMap = new Map();
+  // Queue for breadth-first search
+  const queue = [];
+
+  // Initialize with starting point
+  serverMap.set(startingPoint, { name: startingPoint, scanned: false, parent: null });
+  queue.push(startingPoint);
+
+  while (queue.length > 0) 
   {
-    let serverList = [];
-    const startingPoint = "home";
-    serverList.push(startingPoint);
-    const servers = ns.scan(startingPoint);
+    // Place the first item from the queue into current
+    const current = queue.shift();
 
-    if(servers.length == 0)
+    // Get the server object for the current server
+    const serverObj = serverMap.get(current);
+
+    // Check if this server has already been scanned - if not scan it
+    if (!serverObj.scanned) 
     {
-      return serverList;
-    }
+      // Get a list of neighboring servers
+      const neighbors = ns.scan(current);
 
-    while(true)
-    {      
-      for(let target of servers)
+      // Check each neighbor and see if it's already in the map
+      for (const neighbor of neighbors) 
       {
-        if(serverList.indexOf(target) === -1)
+        // Check if this neighbor is already known
+        if (!serverMap.has(neighbor)) 
         {
-          serverList.push(target);              
+          // Add new server with parent info
+          serverMap.set(neighbor, { name: neighbor, scanned: false, parent: current });
+          queue.push(neighbor);
         }
       }
-    }
-    for(let target of servers)
-    {
-      if(serverList.indexOf(target) === -1)
-      {
-        serverList.push(target);              
-      }
-    }
 
-    for(let x of serverList)
-    {
-      const newServers = ns.scan(x);
-      for(let newServerTarget of newServers)
-      {
-        if(serverList.indexOf(newServerTarget) === -1)
-        {
-          serverList.push(newServerTarget);        
-        }        
-      }        
+      // Mark the current server as scanned
+      serverObj.scanned = true;
     }
-
-    return serverList;
   }
+
+  // Return as array
+  return Array.from(serverMap.values());
+}
   
   export function scanForServers(ns, startingPoint="home")
   {

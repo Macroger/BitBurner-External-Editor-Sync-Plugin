@@ -230,35 +230,26 @@ function getValidServerList(ns, serverList, minMoney = 1, minGrowRate = 1, requi
   }
   return validatedServerList;
 }
-function scanForAllServers(ns) {
-  let serverList = [];
-  const startingPoint = "home";
-  serverList.push(startingPoint);
-  const servers = ns.scan(startingPoint);
-  if (servers.length == 0) {
-    return serverList;
-  }
-  while (true) {
-    for (let target of servers) {
-      if (serverList.indexOf(target) === -1) {
-        serverList.push(target);
+function scanForAllServers(ns, startingPoint = "home") {
+  const serverMap = /* @__PURE__ */ new Map();
+  const queue = [];
+  serverMap.set(startingPoint, { name: startingPoint, scanned: false, parent: null });
+  queue.push(startingPoint);
+  while (queue.length > 0) {
+    const current = queue.shift();
+    const serverObj = serverMap.get(current);
+    if (!serverObj.scanned) {
+      const neighbors = ns.scan(current);
+      for (const neighbor of neighbors) {
+        if (!serverMap.has(neighbor)) {
+          serverMap.set(neighbor, { name: neighbor, scanned: false, parent: current });
+          queue.push(neighbor);
+        }
       }
+      serverObj.scanned = true;
     }
   }
-  for (let target of servers) {
-    if (serverList.indexOf(target) === -1) {
-      serverList.push(target);
-    }
-  }
-  for (let x of serverList) {
-    const newServers = ns.scan(x);
-    for (let newServerTarget of newServers) {
-      if (serverList.indexOf(newServerTarget) === -1) {
-        serverList.push(newServerTarget);
-      }
-    }
-  }
-  return serverList;
+  return Array.from(serverMap.values());
 }
 function scanForServers(ns, startingPoint = "home") {
   let serverList = [];
