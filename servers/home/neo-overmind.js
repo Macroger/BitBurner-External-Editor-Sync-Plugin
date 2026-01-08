@@ -26,7 +26,7 @@ export async function main(ns)
       scanCounter = 0;
       validatedServersList = getValidServerList(ns, scanForAllServers(ns), 1, 1, true, false);
     }
-    
+
     // Increment scan counter.
     scanCounter++;    
     
@@ -99,6 +99,12 @@ export async function main(ns)
       {
         // Time to take action.
         const action = decideServerAction(ns, target);
+
+        // Analyze server state
+        let minSec = ns.getServerMinSecurityLevel(target);
+        let curSec = ns.getServerSecurityLevel(target);
+        let maxMoney = ns.getServerMaxMoney(target);
+        let curMoney = ns.getServerMoneyAvailable(target);
 
         switch(action)
         {

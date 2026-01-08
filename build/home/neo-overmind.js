@@ -193,14 +193,14 @@ function scanForAllServers(ns, startingPoint = "home") {
   return Array.from(serverMap.values());
 }
 function decideServerAction(ns, target) {
-  let minSec2 = ns.getServerMinSecurityLevel(target);
+  let minSec = ns.getServerMinSecurityLevel(target);
   let curSec = ns.getServerSecurityLevel(target);
-  let maxMoney2 = ns.getServerMaxMoney(target);
+  let maxMoney = ns.getServerMaxMoney(target);
   let curMoney = ns.getServerMoneyAvailable(target);
   let mode = "weaken";
-  const weakenThreshold = minSec2 * 1.05;
-  const growThreshold = maxMoney2 * 0.75;
-  const hackThreshold = maxMoney2 * 0.92;
+  const weakenThreshold = minSec * 1.05;
+  const growThreshold = maxMoney * 0.75;
+  const hackThreshold = maxMoney * 0.92;
   if (curSec > weakenThreshold) {
     mode = "weaken";
   } else if (curMoney < growThreshold) {
@@ -298,6 +298,10 @@ async function main(ns) {
       }
       if (Date.now() >= serverStates[target].nextAction) {
         const action = decideServerAction(ns, target);
+        let minSec = ns.getServerMinSecurityLevel(target);
+        let curSec = ns.getServerSecurityLevel(target);
+        let maxMoney = ns.getServerMaxMoney(target);
+        let curMoney = ns.getServerMoneyAvailable(target);
         switch (action) {
           case "weaken":
             launchScriptAttack(ns, weakenScript, target, target, minSec);
