@@ -139,7 +139,7 @@
     {
       // There is enough ram available to open threads, determine how many
       // by dividing the available ram by the cost of the script.
-      // Using math function ceil() to remove any fractional parts of the result.
+      // Using math function floor() to remove any fractional parts of the result.
 
       numThreads = Math.floor(serverAvailableRam / scriptRamCost);
 
@@ -205,9 +205,9 @@
       numThreadsAvailable = getNumThreadsPossible(ns, scriptName, target, reserveThreads);
     } 
 
-    ns.printf("[%s]-INFO: Goal value: %d, script: %s ", sectionName, goal, scriptName);   
+    //ns.printf("[%s]-INFO: Goal value: %d, script: %s ", sectionName, goal, scriptName);   
 
-    ns.printf("[%s]-INFO: Determined %d threads required to get to goal on %s.", sectionName, desiredNumThreads, target);
+    //ns.printf("[%s]-INFO: Determined %d threads required to get to goal on %s.", sectionName, desiredNumThreads, target);
 
     if(desiredNumThreads < numThreadsAvailable)
     {
@@ -260,7 +260,7 @@
     const hackScriptName = localPrefix + "hack.js";
     const growScriptName =  localPrefix + "grow.js";
 
-    ns.printf("[%s]-INFO: Goal: %d", sectionName, goal);
+    //ns.printf("[%s]-INFO: Goal: %d", sectionName, goal);
 
     let threadsRequired = 0;
 
@@ -269,7 +269,7 @@
       // Always reduce security down to minimum value.
       const valueOfOneWeaken = ns.weakenAnalyze(1, serverCpuCount);
       const serverDecreaseRequired = ns.getServerSecurityLevel(target) - ns.getServerMinSecurityLevel(target);
-      ns.printf("[%s]-INFO: value of server decrease required: %d", sectionName, serverDecreaseRequired);
+      //ns.printf("[%s]-INFO: value of server decrease required: %d", sectionName, serverDecreaseRequired);
 
       threadsRequired = serverDecreaseRequired / valueOfOneWeaken;
     }
@@ -281,6 +281,7 @@
     {
       threadsRequired = ns.growthAnalyze(target, goal, serverCpuCount);
     }
+
 
     const result = Math.ceil(threadsRequired);
 

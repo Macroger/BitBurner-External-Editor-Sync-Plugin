@@ -17,6 +17,9 @@ export async function main(ns)
   let serverStates = {};
   let scanCounter = 0;
   let validatedServersList = getValidServerList(ns, scanForAllServers(ns), 1, 1, true, false);
+
+  // Disable all built in API logging for cleaner output.
+  ns.disableLog("ALL");
   
   while(true)
   {   

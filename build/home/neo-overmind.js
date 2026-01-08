@@ -72,8 +72,6 @@ function launchScriptAttack(ns, scriptName, target, source, goal, reserveThreads
   } else {
     numThreadsAvailable = getNumThreadsPossible(ns, scriptName, target, reserveThreads);
   }
-  ns.printf("[%s]-INFO: Goal value: %d, script: %s ", sectionName, goal, scriptName);
-  ns.printf("[%s]-INFO: Determined %d threads required to get to goal on %s.", sectionName, desiredNumThreads, target);
   if (desiredNumThreads < numThreadsAvailable) {
     const result = ns.exec(scriptName, source, desiredNumThreads, target);
     if (result == 0) {
@@ -105,12 +103,10 @@ function getNumThreadsToReachGoal(ns, scriptName, goal, target, source = "remote
   const weakenScriptName = localPrefix + "weaken.js";
   const hackScriptName = localPrefix + "hack.js";
   const growScriptName = localPrefix + "grow.js";
-  ns.printf("[%s]-INFO: Goal: %d", sectionName, goal);
   let threadsRequired = 0;
   if (scriptName == weakenScriptName) {
     const valueOfOneWeaken = ns.weakenAnalyze(1, serverCpuCount);
     const serverDecreaseRequired = ns.getServerSecurityLevel(target) - ns.getServerMinSecurityLevel(target);
-    ns.printf("[%s]-INFO: value of server decrease required: %d", sectionName, serverDecreaseRequired);
     threadsRequired = serverDecreaseRequired / valueOfOneWeaken;
   } else if (scriptName == hackScriptName) {
     threadsRequired = ns.hackAnalyzeThreads(target, goal);
@@ -253,6 +249,7 @@ async function main(ns) {
   let serverStates = {};
   let scanCounter = 0;
   let validatedServersList = getValidServerList(ns, scanForAllServers(ns), 1, 1, true, false);
+  ns.disableLog("ALL");
   while (true) {
     if (scanCounter >= 10) {
       scanCounter = 0;
