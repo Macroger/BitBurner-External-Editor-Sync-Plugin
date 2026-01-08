@@ -109,6 +109,9 @@ export async function main(ns)
         let maxMoney = ns.getServerMaxMoney(target);
         let curMoney = ns.getServerMoneyAvailable(target);
 
+        const minMoney = 0; // Minimum money on server
+        const hackGoal = maxMoney * 0.75; // Hack down to 75% of current money.
+
         switch(action)
         {
           case "weaken":
@@ -116,7 +119,7 @@ export async function main(ns)
                 launchScriptAttack(ns, weakenScript, target, target, minSec);
 
                 // Update next action time.
-                const actionCooldown = ns.getWeakenTime(target) + 250; // Add slight buffer time
+                const actionCooldown = ns.getWeakenTime(target) + 150; // Add slight buffer time
                 serverStates[target].nextAction = Date.now() + actionCooldown;
                 break;
 
@@ -125,16 +128,16 @@ export async function main(ns)
               launchScriptAttack(ns, growScript, target, target, maxMoney);
 
               // Update next action time.
-              const growCooldown = ns.getGrowTime(target) + 250; // Add slight buffer time
+              const growCooldown = ns.getGrowTime(target) + 150; // Add slight buffer time
               serverStates[target].nextAction = Date.now() + growCooldown;
               break;
 
           case "hack":
-              // Use launchScriptAttack to hack down to minMoney
-              launchScriptAttack(ns, hackScript, target, target, minMoney);
+              // Use launchScriptAttack to hack down to hackGoal
+              launchScriptAttack(ns, hackScript, target, target, hackGoal);
 
               // Update next action time.
-              const hackCooldown = ns.getHackTime(target) + 250; // Add slight buffer time
+              const hackCooldown = ns.getHackTime(target) + 150; // Add slight buffer time
               serverStates[target].nextAction = Date.now() + hackCooldown;
               break;
 

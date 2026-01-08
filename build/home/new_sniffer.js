@@ -1,4 +1,79 @@
 // servers/home/myFunctions.js
+function getBestBotnetTarget(ns) {
+  const allServerObjs = scanForAllServers(ns);
+  const validServers = getValidServerList(ns, allServerObjs, 1, 1);
+  if (validServers.length === 0) return null;
+  let best = null;
+  let bestScore = -Infinity;
+  for (const server of validServers) {
+    const maxMoney = ns.getServerMaxMoney(server);
+    const growth = ns.getServerGrowth(server);
+    const minSec = ns.getServerMinSecurityLevel(server);
+    if (maxMoney <= 0 || minSec <= 0) {
+      ns.tprintf("Skipping %s: maxMoney=%s, minSec=%s", server, maxMoney, minSec);
+      continue;
+    }
+    const score = maxMoney * growth / minSec;
+    ns.tprintf("Candidate %s: maxMoney=%s, growth=%s, minSec=%s, score=%s", server, maxMoney, growth, minSec, score);
+    if (score > bestScore) {
+      bestScore = score;
+      best = server;
+      ns.tprintf("New best: %s (score=%s)", server, score);
+    }
+  }
+  ns.tprintf("Optimal botnet target selected: %s (score=%s)", best, bestScore);
+  return best;
+}
+function getNumCrackingPrograms(ns) {
+  let numCrackingProgramsAvailable = 0;
+  if (ns.fileExists("bruteSSH.exe", "home")) {
+    numCrackingProgramsAvailable++;
+  }
+  if (ns.fileExists("relaySMTP.exe", "home")) {
+    numCrackingProgramsAvailable++;
+  }
+  if (ns.fileExists("FTPCrack.exe", "home")) {
+    numCrackingProgramsAvailable++;
+  }
+  if (ns.fileExists("SQLInject.exe", "home")) {
+    numCrackingProgramsAvailable++;
+  }
+  if (ns.fileExists("HTTPWorm.exe", "home")) {
+    numCrackingProgramsAvailable++;
+  }
+  return numCrackingProgramsAvailable;
+}
+function getValidServerList(ns, serverList, minMoney = 1, minGrowRate = 1, requiresRAM = false, requiresNoRam = false) {
+  let validatedServerList = [];
+  const numCrackingProgramsAvailable = getNumCrackingPrograms(ns);
+  const playerHackingLevel = ns.getHackingLevel();
+  for (let target of serverList) {
+    let targetName = target.name;
+    const serverHasRam = ns.getServerMaxRam(targetName) > 0 ? true : false;
+    const serverHasEnoughMoney = ns.getServerMaxMoney(targetName) > minMoney ? true : false;
+    const serverGrowthRate = ns.getServerGrowth(targetName);
+    const canRunNuke = ns.getServerNumPortsRequired(targetName) <= numCrackingProgramsAvailable ? true : false;
+    const serverHackingRequirement = ns.getServerRequiredHackingLevel(targetName);
+    let isPlayerHackingSufficient = playerHackingLevel >= serverHackingRequirement ? true : false;
+    let isGrowthFastEnough = serverGrowthRate >= minGrowRate ? true : false;
+    if (isPlayerHackingSufficient == true && canRunNuke == true && isGrowthFastEnough == true && serverHasEnoughMoney == true) {
+      if (requiresRAM == true && requiresNoRam == true) {
+        validatedServerList.push(targetName);
+      } else if (requiresRAM == true) {
+        if (serverHasRam == true) {
+          validatedServerList.push(targetName);
+        }
+      } else if (requiresNoRam == true) {
+        if (serverHasRam == false) {
+          validatedServerList.push(targetName);
+        }
+      } else {
+        validatedServerList.push(targetName);
+      }
+    }
+  }
+  return validatedServerList;
+}
 function scanForAllServers(ns, startingPoint = "home") {
   const serverMap = /* @__PURE__ */ new Map();
   const queue = [];
@@ -94,7 +169,7 @@ async function main(ns) {
   let detailedMode = false;
   let filterMode = false;
   let helpMode = false;
-  let optimalMode = false;
+  let botnetMode = false;
   const maxServersToShow = 10;
   const defaultServersToShow = 3;
   let serverCountToShow = 0;
@@ -106,6 +181,8 @@ async function main(ns) {
     if (String(args[0]).startsWith("-")) {
       if (args[0] === "-h") {
         helpMode = true;
+      } else if (args[0] === "-b") {
+        botnetMode = true;
       } else if (args[0] === "-m" || args[0] === "-r" || args[0] === "-g" || args[0] === "-s" || args[0] === "-o" || args[0] === "-O") {
         filterMode = true;
         if (args.length >= 2) {
@@ -142,6 +219,17 @@ async function main(ns) {
     }
     ns.tprintf("\nTo see a particular server's details run this script with that server's hostname as argument.");
     ns.tprintf("Example: run new_sniffer.js n00dles");
+    return;
+  } else if (botnetMode) {
+    const target = getBestBotnetTarget(ns);
+    if (target) {
+      ns.tprintf("Optimal botnet target found: %s", target);
+      ns.tprintf("\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500");
+      printServerInfo(ns, target);
+      ns.tprintf("\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500");
+    } else {
+      ns.tprintf("No optimal botnet target found.");
+    }
     return;
   } else if (detailedMode) {
     let arg = args[0];

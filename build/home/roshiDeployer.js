@@ -52,7 +52,7 @@ function getNumThreadsPossible(ns, scriptName, target, reserveThreads = 0) {
       numThreads = 0;
     }
   }
-  ns.printf("[%s]-INFO: determined that %d can be opened.", functionName, numThreads);
+  ns.printf("[%s]-INFO: determined that %d can be opened on %s.", functionName, numThreads, target);
   if (reserveThreads > 0) {
     ns.printf("[%s]-WARN: Detected reserve thread count of %d. Reducing thread count by this amount.", functionName, reserveThreads);
     numThreads = numThreads - reserveThreads;
@@ -69,26 +69,28 @@ function launchScriptAttack(ns, scriptName, target, source, goal, reserveThreads
   } else {
     numThreadsAvailable = getNumThreadsPossible(ns, scriptName, target, reserveThreads);
   }
-  if (desiredNumThreads < numThreadsAvailable) {
+  if (desiredNumThreads === 0) {
+    ns.printf("[%s]-INFO: No threads needed for %s on %s (goal already met or calculation returned zero). Skipping launch.", sectionName, scriptName, target);
+    return false;
+  }
+  if (desiredNumThreads > 0 && desiredNumThreads < numThreadsAvailable) {
     const result = ns.exec(scriptName, source, desiredNumThreads, target);
     if (result == 0) {
       ns.printf("[%s]-ERROR: Starting of script %s failed.\nAttempted to open %d threads.", sectionName, scriptName, desiredNumThreads);
     } else {
-      ns.printf("[%s]-INFO: Successfully opened up %d threads of %s on %s", sectionName, desiredNumThreads, scriptName, source);
+      ns.printf("[%s]-SUCCESS: Successfully opened up %d threads of %s on %s\n", sectionName, desiredNumThreads, scriptName, source);
+      functionResult = true;
+    }
+  } else if (numThreadsAvailable > 0) {
+    const result = ns.exec(scriptName, source, numThreadsAvailable, target);
+    if (result == 0) {
+      ns.printf("[%s]-ERROR: Starting of script %s failed.\nAttempted to open %d threads.", sectionName, scriptName, numThreadsAvailable);
+    } else {
+      ns.printf("[%s]-SUCCESS: Successfully opened up %d threads of %s on %s\n", sectionName, numThreadsAvailable, scriptName, source);
       functionResult = true;
     }
   } else {
-    if (numThreadsAvailable > 0) {
-      const result = ns.exec(scriptName, source, numThreadsAvailable, target);
-      if (result == 0) {
-        ns.printf("[%s]-ERROR: Starting of script %s failed.\nAttempted to open %d threads.", sectionName, scriptName, numThreadsAvailable);
-      } else {
-        ns.printf("[%s]-INFO: Successfully opened up %d threads of %s on %s", sectionName, numThreadsAvailable, scriptName, source);
-        functionResult = true;
-      }
-    } else {
-      ns.printf("[%s]-WARN: Not enough RAM available to open any threads on %s.", sectionName, target);
-    }
+    ns.printf("[%s]-WARN: Not enough RAM available to open any threads on %s.", sectionName, target);
   }
   return functionResult;
 }

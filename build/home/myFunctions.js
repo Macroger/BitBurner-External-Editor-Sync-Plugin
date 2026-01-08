@@ -1,4 +1,29 @@
 // servers/home/myFunctions.js
+function getBestBotnetTarget(ns) {
+  const allServerObjs = scanForAllServers(ns);
+  const validServers = getValidServerList(ns, allServerObjs, 1, 1);
+  if (validServers.length === 0) return null;
+  let best = null;
+  let bestScore = -Infinity;
+  for (const server of validServers) {
+    const maxMoney = ns.getServerMaxMoney(server);
+    const growth = ns.getServerGrowth(server);
+    const minSec = ns.getServerMinSecurityLevel(server);
+    if (maxMoney <= 0 || minSec <= 0) {
+      ns.tprintf("Skipping %s: maxMoney=%s, minSec=%s", server, maxMoney, minSec);
+      continue;
+    }
+    const score = maxMoney * growth / minSec;
+    ns.tprintf("Candidate %s: maxMoney=%s, growth=%s, minSec=%s, score=%s", server, maxMoney, growth, minSec, score);
+    if (score > bestScore) {
+      bestScore = score;
+      best = server;
+      ns.tprintf("New best: %s (score=%s)", server, score);
+    }
+  }
+  ns.tprintf("Optimal botnet target selected: %s (score=%s)", best, bestScore);
+  return best;
+}
 function calculateGrowthRateMultiplier(ns, target) {
   const serverMaxMoney = ns.getServerMaxMoney(target);
   const serverCurrentMoney = ns.getServerMoneyAvailable(target);
@@ -66,7 +91,7 @@ function getNumThreadsPossible(ns, scriptName, target, reserveThreads = 0) {
       numThreads = 0;
     }
   }
-  ns.printf("[%s]-INFO: determined that %d can be opened.", functionName, numThreads);
+  ns.printf("[%s]-INFO: determined that %d can be opened on %s.", functionName, numThreads, target);
   if (reserveThreads > 0) {
     ns.printf("[%s]-WARN: Detected reserve thread count of %d. Reducing thread count by this amount.", functionName, reserveThreads);
     numThreads = numThreads - reserveThreads;
@@ -83,26 +108,28 @@ function launchScriptAttack(ns, scriptName, target, source, goal, reserveThreads
   } else {
     numThreadsAvailable = getNumThreadsPossible(ns, scriptName, target, reserveThreads);
   }
-  if (desiredNumThreads < numThreadsAvailable) {
+  if (desiredNumThreads === 0) {
+    ns.printf("[%s]-INFO: No threads needed for %s on %s (goal already met or calculation returned zero). Skipping launch.", sectionName, scriptName, target);
+    return false;
+  }
+  if (desiredNumThreads > 0 && desiredNumThreads < numThreadsAvailable) {
     const result = ns.exec(scriptName, source, desiredNumThreads, target);
     if (result == 0) {
       ns.printf("[%s]-ERROR: Starting of script %s failed.\nAttempted to open %d threads.", sectionName, scriptName, desiredNumThreads);
     } else {
-      ns.printf("[%s]-INFO: Successfully opened up %d threads of %s on %s", sectionName, desiredNumThreads, scriptName, source);
+      ns.printf("[%s]-SUCCESS: Successfully opened up %d threads of %s on %s\n", sectionName, desiredNumThreads, scriptName, source);
+      functionResult = true;
+    }
+  } else if (numThreadsAvailable > 0) {
+    const result = ns.exec(scriptName, source, numThreadsAvailable, target);
+    if (result == 0) {
+      ns.printf("[%s]-ERROR: Starting of script %s failed.\nAttempted to open %d threads.", sectionName, scriptName, numThreadsAvailable);
+    } else {
+      ns.printf("[%s]-SUCCESS: Successfully opened up %d threads of %s on %s\n", sectionName, numThreadsAvailable, scriptName, source);
       functionResult = true;
     }
   } else {
-    if (numThreadsAvailable > 0) {
-      const result = ns.exec(scriptName, source, numThreadsAvailable, target);
-      if (result == 0) {
-        ns.printf("[%s]-ERROR: Starting of script %s failed.\nAttempted to open %d threads.", sectionName, scriptName, numThreadsAvailable);
-      } else {
-        ns.printf("[%s]-INFO: Successfully opened up %d threads of %s on %s", sectionName, numThreadsAvailable, scriptName, source);
-        functionResult = true;
-      }
-    } else {
-      ns.printf("[%s]-WARN: Not enough RAM available to open any threads on %s.", sectionName, target);
-    }
+    ns.printf("[%s]-WARN: Not enough RAM available to open any threads on %s.", sectionName, target);
   }
   return functionResult;
 }
@@ -282,18 +309,38 @@ function decideServerAction(ns, target) {
   let curSec = ns.getServerSecurityLevel(target);
   let maxMoney = ns.getServerMaxMoney(target);
   let curMoney = ns.getServerMoneyAvailable(target);
-  let mode = "weaken";
-  const weakenThreshold = minSec * 1.05;
-  const growThreshold = maxMoney * 0.75;
-  const hackThreshold = maxMoney * 0.92;
+  const weakenThreshold = Math.max(minSec * 1.05, minSec + 2);
+  const growThreshold = maxMoney * 0.95;
+  const hackThreshold = maxMoney * 0.75;
   if (curSec > weakenThreshold) {
-    mode = "weaken";
-  } else if (curMoney < growThreshold) {
-    mode = "grow";
-  } else if (curMoney >= hackThreshold) {
-    mode = "hack";
+    const cpuCores = ns.getServer(target).cpuCores || 1;
+    const weakenEffect = ns.weakenAnalyze(1, cpuCores);
+    if (curSec - minSec >= weakenEffect) {
+      return "weaken";
+    }
   }
-  return mode;
+  if (curSec <= minSec && curMoney >= maxMoney) {
+    if (ns.hackAnalyzeThreads(target, maxMoney) <= 0) {
+      return "idle";
+    }
+  }
+  if (curMoney < hackThreshold) {
+    return "grow";
+  } else if (curMoney >= growThreshold) {
+    if (ns.hackAnalyzeThreads(target, curMoney) > 0) {
+      return "hack";
+    } else {
+      return "idle";
+    }
+  }
+  if (curMoney >= hackThreshold && curMoney < growThreshold) {
+    if (ns.hackAnalyzeThreads(target, curMoney) > 0) {
+      return "hack";
+    } else {
+      return "idle";
+    }
+  }
+  return "grow";
 }
 function killScript(ns, scriptName, target = "home") {
   const functionName = "killScript";
@@ -308,19 +355,21 @@ function killScript(ns, scriptName, target = "home") {
       return false;
     }
   } else {
-    const runningScripts = ns.ps(target);
-    for (let script of runningScripts) {
-      if (script.filename == scriptName) {
-        ns.printf("[%s]-INFO: Detected %s running on %s. Issuing kill command.", functionName, scriptName, target);
-        if (ns.kill(scriptName, target)) {
-          ns.printf("[%s]-SUCCESS: %s successfully killed on %s.", functionName, scriptName, target);
-        } else {
-          ns.printf("[%s]-ERROR: Failed to kill %s on %s.", functionName, scriptName, target);
-          result = false;
-        }
-      }
+    const beforeScripts = ns.ps(target);
+    const isRunning = beforeScripts.some((s) => s.filename === scriptName);
+    if (!isRunning) {
+      ns.printf("[%s]-INFO: %s is not running on %s. Nothing to kill.", functionName, scriptName, target);
+      return true;
     }
-    return result;
+    const killResult = ns.scriptKill(scriptName, target);
+    const afterScripts = ns.ps(target);
+    if (killResult) {
+      ns.printf("[%s]-SUCCESS: %s successfully killed on %s.", functionName, scriptName, target);
+      return true;
+    } else {
+      ns.printf("[%s]-ERROR: Failed to kill %s on %s, even though it was running.", functionName, scriptName, target);
+      return false;
+    }
   }
 }
 export {
@@ -328,6 +377,7 @@ export {
   decideServerAction,
   displayStats,
   ensureScriptExists,
+  getBestBotnetTarget,
   getNumCrackingPrograms,
   getNumThreadsPossible,
   getNumThreadsToReachGoal,

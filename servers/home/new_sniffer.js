@@ -1,5 +1,5 @@
 /** @param {NS} ns */
-import {scanForAllServers} from "./myFunctions.js";
+import {scanForAllServers, getBestBotnetTarget} from "./myFunctions.js";
 
 // A more advanced server sniffer script with improved formatting and additional details.
 // This script displays server information in a structured format with color coding for better readability.
@@ -117,7 +117,7 @@ export async function main(ns) {
     let detailedMode = false;
     let filterMode = false;
     let helpMode = false; 
-    let optimalMode = false;
+    let botnetMode = false;
 
     const maxServersToShow = 10; // Maximum number of servers to show in filter mode
     const defaultServersToShow = 3; // Default number of servers to show if not specified
@@ -142,6 +142,11 @@ export async function main(ns) {
             if (args[0] === '-h') 
             {
                 helpMode = true;
+            }
+            // Check for botnet flag
+            else if (args[0] === '-b')
+            {
+                botnetMode = true;
             }
             // Check for specific filter flags here (I.E., -m for money, -r for RAM, and -g for growth)
             else if(args[0] === '-m' || args[0] === '-r' || args[0] === '-g' || args[0] === '-s' || args[0] === '-o' || args[0] === '-O')
@@ -205,6 +210,20 @@ export async function main(ns) {
         ns.tprintf("\nTo see a particular server's details run this script with that server's hostname as argument.");
         ns.tprintf("Example: run new_sniffer.js n00dles");
 
+        return;
+    }
+    // If botnet mode
+    else if (botnetMode)
+    {
+        const target = getBestBotnetTarget(ns);
+        if (target) {
+            ns.tprintf("Optimal botnet target found: %s", target);
+            ns.tprintf("──────────────────────────────────────────────────────────────────────────────────────────────────────");
+            printServerInfo(ns, target);
+            ns.tprintf("──────────────────────────────────────────────────────────────────────────────────────────────────────");
+        } else {
+            ns.tprintf("No optimal botnet target found.");
+        }
         return;
     }
     else if (detailedMode)
