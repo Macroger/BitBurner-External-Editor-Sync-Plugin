@@ -25,7 +25,7 @@ export async function main(ns) {
       ns.tprintf("WARN: Issuing killall command.");
       ns.killall(target);
       runningScripts = ns.ps(target);
-      if(runningScripts == 0)
+      if(runningScripts.length == 0)
       {
         ns.tprintf("SUCCESS: Script termination verified.\n\n");
       }

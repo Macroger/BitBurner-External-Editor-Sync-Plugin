@@ -1,15 +1,4 @@
 // servers/home/myFunctions.js
-function calculateGrowthRateMultiplier(ns, target) {
-  const serverMaxMoney = ns.getServerMaxMoney(target);
-  const serverCurrentMoney = ns.getServerMoneyAvailable(target);
-  let returnValue = 0;
-  if (serverCurrentMoney == 0) {
-    returnValue = serverMaxMoney / 100;
-  } else {
-    returnValue = serverMaxMoney / serverCurrentMoney;
-  }
-  return returnValue;
-}
 function ensureScriptExists(ns, script, target) {
   const fileExists = ns.fileExists(script, target);
   let fileTransferResult = true;
@@ -132,35 +121,6 @@ function getNumThreadsToReachGoal(ns, scriptName, goal, target, source = "remote
   ns.printf("[%s]-INFO: Number of threads required to reach goal: %d", sectionName, result);
   return result;
 }
-function displayStats(ns, target) {
-  const runningScripts = ns.ps(target);
-  ns.tprintf("\n%s found!", target);
-  ns.tprintf("Required hacking skill: %s", ns.formatNumber(ns.getServerRequiredHackingLevel(target), 2, 1e3, true));
-  ns.tprintf(
-    "\nServer security ratings:\n(Min., Base, Current)\n(%s, %s, %s)",
-    ns.formatNumber(ns.getServerMinSecurityLevel(target)),
-    ns.formatNumber(ns.getServerBaseSecurityLevel(target)),
-    ns.formatNumber(ns.getServerSecurityLevel(target))
-  );
-  ns.tprintf("\nGrowth rate: %d", ns.getServerGrowth(target));
-  ns.tprintf("\nGrow time: %d minutes %d seconds.", ns.getGrowTime(target) / 1e3 / 60, ns.getGrowTime(target) / 1e3 % 60);
-  ns.tprintf("Weaken time: %d minutes %d seconds.", ns.getWeakenTime(target) / 1e3 / 60, ns.getWeakenTime(target) / 1e3 % 60);
-  ns.tprintf("Hack time: %d minutes %d seconds.", ns.getHackTime(target) / 1e3 / 60, ns.getHackTime(target) / 1e3 % 60);
-  ns.tprintf("\nMoney available: $%s", ns.formatNumber(ns.getServerMoneyAvailable(target), 2, 1e3, true));
-  ns.tprintf("Maximum Money: $%s", ns.formatNumber(ns.getServerMaxMoney(target), 2, 1e3, true));
-  ns.tprintf("\nTotal amount of RAM: %s", ns.formatRam(ns.getServerMaxRam(target)));
-  ns.tprintf("Amount of free RAM: %s", ns.formatRam(ns.getServerMaxRam(target) - ns.getServerUsedRam(target)));
-  ns.tprintf("\nRoot access status: %s", ns.hasRootAccess(target) ? "Granted" : "Not Granted");
-  ns.tprintf("Ports required to crack: %d", ns.getServerNumPortsRequired(target));
-  if (runningScripts.length == 0) {
-    ns.tprintf("Local scripts running: None detected.");
-  } else {
-    ns.tprintf("Scripts running: ");
-    for (let script of runningScripts) {
-      ns.tprintf("%s", script.filename);
-    }
-  }
-}
 function getNumCrackingPrograms(ns) {
   let numCrackingProgramsAvailable = 0;
   if (ns.fileExists("bruteSSH.exe", "home")) {
@@ -180,35 +140,14 @@ function getNumCrackingPrograms(ns) {
   }
   return numCrackingProgramsAvailable;
 }
-function validateServer(ns, server, minMoney = 1, minGrowRate = 1) {
-  let result = false;
-  let numCrackingProgramsAvailable = getNumCrackingPrograms(ns);
-  let isPlayerHackingSufficient = false;
-  const serverHasEnoughMoney = ns.getServerMaxMoney(server) > minMoney ? true : false;
-  const playerHackingLevel = ns.getHackingLevel();
-  const serverGrowthRate = ns.getServerGrowth(server);
-  const canRunNuke = ns.getServerNumPortsRequired(server) <= numCrackingProgramsAvailable ? true : false;
-  const serverHackingRequirement = ns.getServerRequiredHackingLevel(server);
-  let isGrowthFastEnough = false;
-  if (playerHackingLevel >= serverHackingRequirement) {
-    isPlayerHackingSufficient = true;
-  }
-  if (serverGrowthRate >= minGrowRate) {
-    isGrowthFastEnough = true;
-  }
-  if (isPlayerHackingSufficient == true && canRunNuke == true && isGrowthFastEnough == true && serverHasEnoughMoney == true) {
-    result = true;
-  }
-  return result;
-}
-function getValidServerList(ns, serverList, minMoney = 1, minGrowRate = 1, requiresRAM = false, requiresNoRam = false) {
+function getValidServerList(ns, serverList, minMoney2 = 1, minGrowRate = 1, requiresRAM = false, requiresNoRam = false) {
   let validatedServerList = [];
   const numCrackingProgramsAvailable = getNumCrackingPrograms(ns);
   const playerHackingLevel = ns.getHackingLevel();
   for (let target of serverList) {
     let targetName = target.name;
     const serverHasRam = ns.getServerMaxRam(targetName) > 0 ? true : false;
-    const serverHasEnoughMoney = ns.getServerMaxMoney(targetName) > minMoney ? true : false;
+    const serverHasEnoughMoney = ns.getServerMaxMoney(targetName) > minMoney2 ? true : false;
     const serverGrowthRate = ns.getServerGrowth(targetName);
     const canRunNuke = ns.getServerNumPortsRequired(targetName) <= numCrackingProgramsAvailable ? true : false;
     const serverHackingRequirement = ns.getServerRequiredHackingLevel(targetName);
@@ -253,32 +192,14 @@ function scanForAllServers(ns, startingPoint = "home") {
   }
   return Array.from(serverMap.values());
 }
-function scanForServers(ns, startingPoint = "home") {
-  let serverList = [];
-  const servers = ns.scan(startingPoint);
-  for (let target of servers) {
-    if (serverList.indexOf(target) === -1) {
-      serverList.push(target);
-    }
-  }
-  for (let x of serverList) {
-    const newServers = ns.scan(x);
-    for (let newServerTarget of newServers) {
-      if (serverList.indexOf(newServerTarget) === -1) {
-        serverList.push(newServerTarget);
-      }
-    }
-  }
-  return serverList;
-}
 function decideServerAction(ns, target) {
-  let minSec = ns.getServerMinSecurityLevel(target);
+  let minSec2 = ns.getServerMinSecurityLevel(target);
   let curSec = ns.getServerSecurityLevel(target);
-  let maxMoney = ns.getServerMaxMoney(target);
+  let maxMoney2 = ns.getServerMaxMoney(target);
   let curMoney = ns.getServerMoneyAvailable(target);
-  const weakenThreshold = minSec * 1.05;
-  const growThreshold = maxMoney * 0.75;
-  const hackThreshold = maxMoney * 0.92;
+  const weakenThreshold = minSec2 * 1.05;
+  const growThreshold = maxMoney2 * 0.75;
+  const hackThreshold = maxMoney2 * 0.92;
   if (curSec > weakenThreshold) {
     mode = "weaken";
   } else if (curMoney < growThreshold) {
@@ -319,19 +240,88 @@ function killScript(ns, scriptName, target = "home") {
     return result;
   }
 }
+
+// servers/home/neo-overmind.js
+async function main(ns) {
+  const selfName = "neo-overmind.js";
+  const weakenScript = "local_weaken.js";
+  const growScript = "local_grow.js";
+  const hackScript = "local_hack.js";
+  const scripts = [weakenScript, growScript, hackScript];
+  const sleepTime = 500;
+  let serverStates = {};
+  let scanCounter = 0;
+  let validatedServersList = getValidServerList(ns, scanForAllServers(ns), 1, 1, true, false);
+  while (true) {
+    if (scanCounter >= 10) {
+      scanCounter = 0;
+      validatedServersList = getValidServerList(ns, scanForAllServers(ns), 1, 1, true, false);
+    }
+    scanCounter++;
+    for (let target of validatedServersList) {
+      if (!(target in serverStates)) {
+        serverStates[target] = {
+          phase: "analyze",
+          nextAction: Date.now(),
+          setupComplete: false,
+          hasError: false
+        };
+      }
+      if (serverStates[target].hasError == true) {
+        continue;
+      }
+      if (serverStates[target].setupComplete == false) {
+        ns.printf("[%s]-INFO: Performing first time setup for server %s...", selfName, target);
+        if (ns.hasRootAccess(target) == false) {
+          const rootAccess = getRootAccess(ns, target);
+          if (rootAccess == false) {
+            ns.printf("[%s]-ERROR: %s remains uncracked. Check error logs, root access remains denied. Continuing to next server.", selfName, target);
+            serverStates[target].hasError = true;
+            continue;
+          }
+        }
+        for (const script of scripts) {
+          if (ensureScriptExists(ns, script, target) == false) {
+            ns.printf("ERROR: Unable to verify %s exists on %s. This server needs to be investigated for issues.", script, target);
+            serverStates[target].hasError = true;
+            break;
+          }
+          if (killScript(ns, script, target) == false) {
+            ns.printf("ERROR: Unable to kill existing %s on %s. Skipping to next target server.", script, target);
+            serverStates[target].hasError = true;
+            break;
+          }
+        }
+        serverStates[target].setupComplete = true;
+        ns.printf("[%s]-SUCCESS: Setup complete for server %s. All required scripts verified and no scripts running.", selfName, target);
+      }
+      if (Date.now() >= serverStates[target].nextAction) {
+        const action = decideServerAction(ns, target);
+        switch (action) {
+          case "weaken":
+            launchScriptAttack(ns, weakenScript, target, target, minSec);
+            const actionCooldown = ns.getWeakenTime(target);
+            serverStates[target].nextAction = Date.now() + actionCooldown;
+            break;
+          case "grow":
+            launchScriptAttack(ns, growScript, target, target, maxMoney);
+            const growCooldown = ns.getGrowTime(target);
+            serverStates[target].nextAction = Date.now() + growCooldown;
+            break;
+          case "hack":
+            launchScriptAttack(ns, hackScript, target, target, minMoney);
+            const hackCooldown = ns.getHackTime(target);
+            serverStates[target].nextAction = Date.now() + hackCooldown;
+            break;
+          default:
+            ns.printf("[%s]-ERROR: Unable to determine action for %s.", selfName, target);
+            break;
+        }
+      }
+    }
+    await ns.sleep(sleepTime);
+  }
+}
 export {
-  calculateGrowthRateMultiplier,
-  decideServerAction,
-  displayStats,
-  ensureScriptExists,
-  getNumCrackingPrograms,
-  getNumThreadsPossible,
-  getNumThreadsToReachGoal,
-  getRootAccess,
-  getValidServerList,
-  killScript,
-  launchScriptAttack,
-  scanForAllServers,
-  scanForServers,
-  validateServer
+  main
 };

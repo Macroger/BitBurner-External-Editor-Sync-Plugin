@@ -45,7 +45,7 @@
     const fileExists = ns.fileExists(script, target);
     let fileTransferResult = true;
 
-    // Determine if the local_weaken.js script exists on the target server.
+    // Determine if the script exists on the target server.
     // If not, attempt to copy it over.
     if(fileExists == false)
     {
@@ -68,7 +68,6 @@
 
     return fileTransferResult;
   }
-
 
   /**
    * Attempts to gain root access on the specified target server by using available hacking programs. 
@@ -116,7 +115,6 @@
 
     return ns.hasRootAccess(target);   
   }
-
 
   /**
    * Calculates the number of threads that could be opened on the target server for a given script.
@@ -168,8 +166,6 @@
     }
     return numThreads;
   }
-
-
   
   /**
    * Launches a script attack on a target server using the specified script.
@@ -258,9 +254,11 @@
     let server = (source == "remote" ? ns.getServer(target) : ns.getServer(source));
     const serverCpuCount = server.cpuCores;
 
-    const weakenScriptName = "weaken.js";
-    const hackScriptName = "hack.js";
-    const growScriptName = "grow.js";
+    const localPrefix = "local_";
+
+    const weakenScriptName = localPrefix + "weaken.js";
+    const hackScriptName = localPrefix + "hack.js";
+    const growScriptName =  localPrefix + "grow.js";
 
     ns.printf("[%s]-INFO: Goal: %d", sectionName, goal);
 
@@ -441,7 +439,6 @@
     return result;
   }
 
-
   /**
    * This function uses a variety of conditions to test against each server and returns an
    * array of strings containing the host names of servers that passed validation.
@@ -468,19 +465,20 @@
 
     for(let target of serverList)
     {
-      const serverHasRam = ns.getServerMaxRam(target) > 0 ? true: false;
+      let targetName = target.name;
+      const serverHasRam = ns.getServerMaxRam(targetName) > 0 ? true: false;
 
       // Test if the server has a maximum money value greater than minMoney.
-      const serverHasEnoughMoney = (ns.getServerMaxMoney(target) > minMoney) ? true : false;
+      const serverHasEnoughMoney = (ns.getServerMaxMoney(targetName) > minMoney) ? true : false;
 
       // Get the server's grow rate.
-      const serverGrowthRate = ns.getServerGrowth(target);
+      const serverGrowthRate = ns.getServerGrowth(targetName);
 
-      // Determine if the player has enough cracking programs to crack the target server.
-      const canRunNuke = (ns.getServerNumPortsRequired(target) <= numCrackingProgramsAvailable? true: false); 
+      // Determine if the player has enough cracking programs to crack the targetName server.
+      const canRunNuke = (ns.getServerNumPortsRequired(targetName) <= numCrackingProgramsAvailable? true: false); 
 
       // Determine the server's hacking level requirement.
-      const serverHackingRequirement = ns.getServerRequiredHackingLevel(target);
+      const serverHackingRequirement = ns.getServerRequiredHackingLevel(targetName);
 
       // Boolean value used to represent whether the servers hack requirement is lower than the players' skill.
       let isPlayerHackingSufficient = (playerHackingLevel >= serverHackingRequirement ? true : false);
@@ -488,7 +486,7 @@
       // Boolean value to represent whether server growth is above the minimum growth rate.
       let isGrowthFastEnough = (serverGrowthRate >= minGrowRate? true : false);
 
-      // The final check, this ensures that the target server passes all the required checks, and if so, adds it to the list.
+      // The final check, this ensures that the targetName server passes all the required checks, and if so, adds it to the list.
       if(isPlayerHackingSufficient == true 
       && canRunNuke == true 
       && isGrowthFastEnough == true 
@@ -496,84 +494,89 @@
       {
         if (requiresRAM == true && requiresNoRam == true)
         {
-          validatedServerList.push(target);
+          validatedServerList.push(targetName);
         }
         else if(requiresRAM == true)
         {
           if(serverHasRam == true)
           {
-            validatedServerList.push(target);
+            validatedServerList.push(targetName);
           }
         }
         else if(requiresNoRam == true)
         {
           if(serverHasRam == false)
           {
-            validatedServerList.push(target);
+            validatedServerList.push(targetName);
           }
         }
         else
         {
-          validatedServerList.push(target);
+          validatedServerList.push(targetName);
         }
       }
     }
     return validatedServerList;
   }
 
+  /**
+   * Scans the entire network, returning an array of server objects with parent info for path reconstruction.
+   * Each object: { name: string, scanned: boolean, parent: string|null }
+   * @param {NS} ns
+   * @param {string} [startingPoint="home"]
+   * @returns {Array<{name: string, scanned: boolean, parent: string|null}>}
+   */
+  export function scanForAllServers(ns, startingPoint = "home") {
+    // Map: server name -> server object
+    const serverMap = new Map();
+    // Queue for breadth-first search
+    const queue = [];
 
-/**
- * Scans the entire network, returning an array of server objects with parent info for path reconstruction.
- * Each object: { name: string, scanned: boolean, parent: string|null }
- * @param {NS} ns
- * @param {string} [startingPoint="home"]
- * @returns {Array<{name: string, scanned: boolean, parent: string|null}>}
- */
-export function scanForAllServers(ns, startingPoint = "home") {
-  // Map: server name -> server object
-  const serverMap = new Map();
-  // Queue for breadth-first search
-  const queue = [];
+    // Initialize with starting point
+    serverMap.set(startingPoint, { name: startingPoint, scanned: false, parent: null });
+    queue.push(startingPoint);
 
-  // Initialize with starting point
-  serverMap.set(startingPoint, { name: startingPoint, scanned: false, parent: null });
-  queue.push(startingPoint);
-
-  while (queue.length > 0) 
-  {
-    // Place the first item from the queue into current
-    const current = queue.shift();
-
-    // Get the server object for the current server
-    const serverObj = serverMap.get(current);
-
-    // Check if this server has already been scanned - if not scan it
-    if (!serverObj.scanned) 
+    while (queue.length > 0) 
     {
-      // Get a list of neighboring servers
-      const neighbors = ns.scan(current);
+      // Place the first item from the queue into current
+      const current = queue.shift();
 
-      // Check each neighbor and see if it's already in the map
-      for (const neighbor of neighbors) 
+      // Get the server object for the current server
+      const serverObj = serverMap.get(current);
+
+      // Check if this server has already been scanned - if not scan it
+      if (!serverObj.scanned) 
       {
-        // Check if this neighbor is already known
-        if (!serverMap.has(neighbor)) 
+        // Get a list of neighboring servers
+        const neighbors = ns.scan(current);
+
+        // Check each neighbor and see if it's already in the map
+        for (const neighbor of neighbors) 
         {
-          // Add new server with parent info
-          serverMap.set(neighbor, { name: neighbor, scanned: false, parent: current });
-          queue.push(neighbor);
+          // Check if this neighbor is already known
+          if (!serverMap.has(neighbor)) 
+          {
+            // Add new server with parent info
+            serverMap.set(neighbor, { name: neighbor, scanned: false, parent: current });
+            queue.push(neighbor);
+          }
         }
+
+        // Mark the current server as scanned
+        serverObj.scanned = true;
       }
-
-      // Mark the current server as scanned
-      serverObj.scanned = true;
     }
-  }
 
-  // Return as array
-  return Array.from(serverMap.values());
-}
-  
+    // Return as array
+    return Array.from(serverMap.values());
+  }
+    
+  /**
+   * Scans the network starting from a specified server and returns a list of all discovered servers.
+   * @param {*} ns - The Bitburner Netscript API object.
+   * @param {*} startingPoint - The hostname of the server to start scanning from.
+   * @returns - string[] - An array of strings containing the hostnames of all discovered servers.
+   */
   export function scanForServers(ns, startingPoint="home")
   {
     let serverList = [];
@@ -602,8 +605,104 @@ export function scanForAllServers(ns, startingPoint = "home") {
     return serverList;
   }
 
-  // Scan for servers connected to home.
-  // Place found servers into an array.
-  // Iterate through array, and scan again - using each found server as a new starting point.
-  // Prevent duplicates from being added to the list.
-  // If no new connections are found for a server
+  /**
+   * Decides the next action to take on a server based on its current state.
+   * @param {*} ns - The Bitburner Netscript API object.
+   * @param {*} target - The hostname of the server to analyze.
+   * @returns - string - The next action to take: "weaken", "grow", or "hack".
+   */
+  export function decideServerAction(ns, target) 
+  {  
+    let minSec = ns.getServerMinSecurityLevel(target);
+    let curSec = ns.getServerSecurityLevel(target);
+    let maxMoney = ns.getServerMaxMoney(target);
+    let curMoney = ns.getServerMoneyAvailable(target);
+
+    const weakenThreshold = minSec * 1.05; // Threshold for when to begin weakening (5% above min)
+    const growThreshold = maxMoney * 0.75; // Threshold for when to begin growing money (75% of maxMoney)
+    const hackThreshold = maxMoney * 0.92; // Threshold for when to begin hacking money (92% of maxMoney)
+
+    // Check server state and decide next mode
+    if (curSec > weakenThreshold) 
+    {
+        // The servers security is too high, we need to weaken it
+        mode = "weaken";                        
+    }
+    else if (curMoney < growThreshold) 
+    {
+        // The server needs to grow more money
+        mode = "grow";                    
+    }
+    else if(curMoney >= hackThreshold)
+    {
+        // The server is primed for hacking
+        mode = "hack";
+    }  
+    return mode;
+  }
+
+  /**
+   * This function attempts to kill a specific script or all scripts on a target server.
+   *
+   * @export
+   * @param {*} ns - The Bitburner Netscript API object.
+   * @param {*} scriptName - The name of the script to kill, or "allScripts" to kill all scripts.
+   * @param {string} [target="home"] - The hostname of the server on which to kill the script(s).
+   * @return {*} - A boolean indicating whether the kill operation was successful.
+   */
+  export function killScript(ns, scriptName, target = "home")
+  {
+    const functionName = "killScript";
+
+    ns.printf("[%s]-INFO: Attempting to kill %s on %s.", functionName, scriptName, target);
+
+    let result = true;
+
+    // Check if we are to kill all scripts.
+    if(scriptName == "allScripts")
+    {
+      ns.printf("[%s]-INFO: Issuing killall command on %s.", functionName, target);
+      
+      if(ns.killall(target))
+      {
+        ns.printf("[%s]-SUCCESS: killall command successful on %s.", functionName, target);
+        return true;
+      }
+      else
+      {
+        ns.printf("[%s]-ERROR: killall command failed on %s.", functionName, target);
+        return false;
+      }      
+    }
+    else
+    {
+      // We are to kill a specific script.
+      ns.printf("[%s]-INFO: Looking for %s running on %s.", functionName, scriptName, target);      
+      
+      const runningScripts = ns.ps(target);
+
+      ns.printf("[%s]-INFO: Found %d scripts running on %s.", functionName, runningScripts.length, target);
+      for(let script of runningScripts)
+      {
+        // Check if the script is the one we want to kill.
+        if(script.filename == scriptName)
+        {
+          ns.printf("[%s]-INFO: Detected %s running on %s. Issuing kill command.", functionName, scriptName, target);
+
+          // Check if the kill was successful.
+          if(ns.kill(scriptName, target))
+          {
+            ns.printf("[%s]-SUCCESS: %s successfully killed on %s.", functionName, scriptName, target);
+          }
+          else
+          {
+            ns.printf("[%s]-ERROR: Failed to kill %s on %s.", functionName, scriptName, target);
+            result = false;
+          }          
+        }
+      }
+      return result;
+    }    
+  }
+
+  

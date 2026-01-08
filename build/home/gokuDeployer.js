@@ -98,9 +98,10 @@ function getNumThreadsToReachGoal(ns, scriptName, goal, target, source = "remote
   const sectionName = "getNumThreadsToReachGoal";
   let server = source == "remote" ? ns.getServer(target) : ns.getServer(source);
   const serverCpuCount = server.cpuCores;
-  const weakenScriptName = "weaken.js";
-  const hackScriptName = "hack.js";
-  const growScriptName = "grow.js";
+  const localPrefix = "local_";
+  const weakenScriptName = localPrefix + "weaken.js";
+  const hackScriptName = localPrefix + "hack.js";
+  const growScriptName = localPrefix + "grow.js";
   ns.printf("[%s]-INFO: Goal: %d", sectionName, goal);
   let threadsRequired = 0;
   if (scriptName == weakenScriptName) {

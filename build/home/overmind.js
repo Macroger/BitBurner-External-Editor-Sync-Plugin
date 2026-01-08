@@ -112,9 +112,10 @@ function getNumThreadsToReachGoal(ns, scriptName, goal, target, source = "remote
   const sectionName = "getNumThreadsToReachGoal";
   let server = source == "remote" ? ns.getServer(target) : ns.getServer(source);
   const serverCpuCount = server.cpuCores;
-  const weakenScriptName = "weaken.js";
-  const hackScriptName = "hack.js";
-  const growScriptName = "grow.js";
+  const localPrefix = "local_";
+  const weakenScriptName = localPrefix + "weaken.js";
+  const hackScriptName = localPrefix + "hack.js";
+  const growScriptName = localPrefix + "grow.js";
   ns.printf("[%s]-INFO: Goal: %d", sectionName, goal);
   let threadsRequired = 0;
   if (scriptName == weakenScriptName) {
@@ -155,26 +156,27 @@ function getValidServerList(ns, serverList, minMoney = 1, minGrowRate = 1, requi
   const numCrackingProgramsAvailable = getNumCrackingPrograms(ns);
   const playerHackingLevel = ns.getHackingLevel();
   for (let target of serverList) {
-    const serverHasRam = ns.getServerMaxRam(target) > 0 ? true : false;
-    const serverHasEnoughMoney = ns.getServerMaxMoney(target) > minMoney ? true : false;
-    const serverGrowthRate = ns.getServerGrowth(target);
-    const canRunNuke = ns.getServerNumPortsRequired(target) <= numCrackingProgramsAvailable ? true : false;
-    const serverHackingRequirement = ns.getServerRequiredHackingLevel(target);
+    let targetName = target.name;
+    const serverHasRam = ns.getServerMaxRam(targetName) > 0 ? true : false;
+    const serverHasEnoughMoney = ns.getServerMaxMoney(targetName) > minMoney ? true : false;
+    const serverGrowthRate = ns.getServerGrowth(targetName);
+    const canRunNuke = ns.getServerNumPortsRequired(targetName) <= numCrackingProgramsAvailable ? true : false;
+    const serverHackingRequirement = ns.getServerRequiredHackingLevel(targetName);
     let isPlayerHackingSufficient = playerHackingLevel >= serverHackingRequirement ? true : false;
     let isGrowthFastEnough = serverGrowthRate >= minGrowRate ? true : false;
     if (isPlayerHackingSufficient == true && canRunNuke == true && isGrowthFastEnough == true && serverHasEnoughMoney == true) {
       if (requiresRAM == true && requiresNoRam == true) {
-        validatedServerList.push(target);
+        validatedServerList.push(targetName);
       } else if (requiresRAM == true) {
         if (serverHasRam == true) {
-          validatedServerList.push(target);
+          validatedServerList.push(targetName);
         }
       } else if (requiresNoRam == true) {
         if (serverHasRam == false) {
-          validatedServerList.push(target);
+          validatedServerList.push(targetName);
         }
       } else {
-        validatedServerList.push(target);
+        validatedServerList.push(targetName);
       }
     }
   }

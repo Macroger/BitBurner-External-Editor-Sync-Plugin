@@ -1,27 +1,4 @@
-// servers/home/myFunctions.js
-function getNumThreadsPossible(ns, scriptName, target, reserveThreads = 0) {
-  const functionName = "getNumThreadsPossible";
-  const serverAvailableRam = ns.getServerMaxRam(target) - ns.getServerUsedRam(target);
-  const scriptRamCost = ns.getScriptRam(scriptName);
-  let numThreads = 0;
-  const maxThreadCount = 1e6;
-  if (serverAvailableRam >= scriptRamCost) {
-    numThreads = Math.floor(serverAvailableRam / scriptRamCost);
-    if (numThreads < 1) {
-      ns.printf("[%s]-ERROR: Unable to open any threads. Skipping this target for now - but %s requires investigation.", functionName, target);
-      numThreads = 0;
-    } else if (numThreads > maxThreadCount) {
-      ns.printf("[%s]-ERROR: Too many threads suggested.(t = %d).", functionName, numThreads);
-      numThreads = 0;
-    }
-  }
-  ns.printf("[%s]-INFO: determined that %d can be opened.", functionName, numThreads);
-  if (reserveThreads > 0) {
-    ns.printf("[%s]-WARN: Detected reserve thread count of %d. Reducing thread count by this amount.", functionName, reserveThreads);
-    numThreads = numThreads - reserveThreads;
-  }
-  return numThreads;
-}
+// servers/home/serverActionManager.js
 function launchScriptAttack(ns, scriptName, target, source, goal, reserveThreads = 0, localMode = false) {
   const sectionName = "launchScriptAttack";
   let functionResult = false;
@@ -57,13 +34,37 @@ function launchScriptAttack(ns, scriptName, target, source, goal, reserveThreads
   }
   return functionResult;
 }
+function getNumThreadsPossible(ns, scriptName, target, reserveThreads = 0) {
+  const functionName = "getNumThreadsPossible";
+  const serverAvailableRam = ns.getServerMaxRam(target) - ns.getServerUsedRam(target);
+  const scriptRamCost = ns.getScriptRam(scriptName);
+  let numThreads = 0;
+  const maxThreadCount = 1e6;
+  if (serverAvailableRam >= scriptRamCost) {
+    numThreads = Math.floor(serverAvailableRam / scriptRamCost);
+    if (numThreads < 1) {
+      ns.printf("[%s]-ERROR: Unable to open any threads. Skipping this target for now - but %s requires investigation.", functionName, target);
+      numThreads = 0;
+    } else if (numThreads > maxThreadCount) {
+      ns.printf("[%s]-ERROR: Too many threads suggested.(t = %d).", functionName, numThreads);
+      numThreads = 0;
+    }
+  }
+  ns.printf("[%s]-INFO: determined that %d can be opened.", functionName, numThreads);
+  if (reserveThreads > 0) {
+    ns.printf("[%s]-WARN: Detected reserve thread count of %d. Reducing thread count by this amount.", functionName, reserveThreads);
+    numThreads = numThreads - reserveThreads;
+  }
+  return numThreads;
+}
 function getNumThreadsToReachGoal(ns, scriptName, goal, target, source = "remote") {
   const sectionName = "getNumThreadsToReachGoal";
   let server = source == "remote" ? ns.getServer(target) : ns.getServer(source);
   const serverCpuCount = server.cpuCores;
-  const weakenScriptName = "weaken.js";
-  const hackScriptName = "hack.js";
-  const growScriptName = "grow.js";
+  const localPrefix = "local_";
+  const weakenScriptName = localPrefix + "weaken.js";
+  const hackScriptName = localPrefix + "hack.js";
+  const growScriptName = localPrefix + "grow.js";
   ns.printf("[%s]-INFO: Goal: %d", sectionName, goal);
   let threadsRequired = 0;
   if (scriptName == weakenScriptName) {
@@ -80,8 +81,6 @@ function getNumThreadsToReachGoal(ns, scriptName, goal, target, source = "remote
   ns.printf("[%s]-INFO: Number of threads required to reach goal: %d", sectionName, result);
   return result;
 }
-
-// servers/home/serverActionManager.js
 async function main(ns) {
   const target = ns.args[0];
   let mode = "analyze";
@@ -123,6 +122,7 @@ async function main(ns) {
         mode = "analyze";
         await ns.sleep(ns.getHackTime(target));
         continue;
+        break;
     }
   }
 }
