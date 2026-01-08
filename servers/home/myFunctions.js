@@ -618,6 +618,8 @@
     let maxMoney = ns.getServerMaxMoney(target);
     let curMoney = ns.getServerMoneyAvailable(target);
 
+    let mode = "weaken"; // Default mode
+
     const weakenThreshold = minSec * 1.05; // Threshold for when to begin weakening (5% above min)
     const growThreshold = maxMoney * 0.75; // Threshold for when to begin growing money (75% of maxMoney)
     const hackThreshold = maxMoney * 0.92; // Threshold for when to begin hacking money (92% of maxMoney)

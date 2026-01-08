@@ -26,7 +26,7 @@ export async function main(ns)
       scanCounter = 0;
       validatedServersList = getValidServerList(ns, scanForAllServers(ns), 1, 1, true, false);
     }
-
+    
     // Increment scan counter.
     scanCounter++;    
     

@@ -276,6 +276,7 @@ function decideServerAction(ns, target) {
   let curSec = ns.getServerSecurityLevel(target);
   let maxMoney = ns.getServerMaxMoney(target);
   let curMoney = ns.getServerMoneyAvailable(target);
+  let mode = "weaken";
   const weakenThreshold = minSec * 1.05;
   const growThreshold = maxMoney * 0.75;
   const hackThreshold = maxMoney * 0.92;
