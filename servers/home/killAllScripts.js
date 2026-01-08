@@ -28,6 +28,14 @@ export async function main(ns) {
       if(runningScripts.length == 0)
       {
         ns.tprintf("SUCCESS: Script termination verified.\n\n");
+        // Remove all .js script files from the server
+        const scriptFiles = ns.ls(target, ".js");
+        for (let file of scriptFiles) {
+          if (file !== "killAllScripts.js") { // Optionally skip this script
+            ns.rm(file, target);
+            ns.tprintf("INFO: Removed %s from %s", file, target);
+          }
+        }
       }
       else
       {

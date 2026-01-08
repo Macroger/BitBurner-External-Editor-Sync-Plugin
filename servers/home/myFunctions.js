@@ -263,14 +263,13 @@
     //ns.printf("[%s]-INFO: Goal: %d", sectionName, goal);
 
     let threadsRequired = 0;
+    const THREAD_CAP = 10000;
 
     if(scriptName == weakenScriptName)
     {
       // Always reduce security down to minimum value.
       const valueOfOneWeaken = ns.weakenAnalyze(1, serverCpuCount);
       const serverDecreaseRequired = ns.getServerSecurityLevel(target) - ns.getServerMinSecurityLevel(target);
-      //ns.printf("[%s]-INFO: value of server decrease required: %d", sectionName, serverDecreaseRequired);
-
       threadsRequired = serverDecreaseRequired / valueOfOneWeaken;
     }
     else if(scriptName == hackScriptName)
@@ -279,13 +278,23 @@
     }
     else if(scriptName == growScriptName)
     {
-      threadsRequired = ns.growthAnalyze(target, goal, serverCpuCount);
+      // Clamp goal to at least 1 to avoid huge multipliers if current money is 0 or very low
+      let safeGoal = Math.max(goal, 1);
+      threadsRequired = ns.growthAnalyze(target, safeGoal, serverCpuCount);
+      if (threadsRequired > THREAD_CAP) {
+        ns.printf("[%s]-WARN: Calculated grow threads (%d) exceeds cap (%d) for %s. Capping to %d.", sectionName, threadsRequired, THREAD_CAP, target, THREAD_CAP);
+        threadsRequired = THREAD_CAP;
+      }
     }
 
+    // General cap for all thread calculations
+    let result = Math.ceil(threadsRequired);
+    if (result > THREAD_CAP) {
+      ns.printf("[%s]-WARN: Calculated threads (%d) exceeds cap (%d) for %s. Capping to %d.", sectionName, result, THREAD_CAP, target, THREAD_CAP);
+      result = THREAD_CAP;
+    }
 
-    const result = Math.ceil(threadsRequired);
-
-    ns.printf("[%s]-INFO: Number of threads required to reach goal: %d", sectionName, result);
+    ns.printf("[%s]-INFO: Number of threads required to reach goal of %d on %s: %d", sectionName, goal, target, result);
 
     return result;
   }
@@ -657,7 +666,7 @@
   {
     const functionName = "killScript";
 
-    ns.printf("[%s]-INFO: Attempting to kill %s on %s.", functionName, scriptName, target);
+    //ns.printf("[%s]-INFO: Attempting to kill %s on %s.", functionName, scriptName, target);
 
     let result = true;
 
@@ -680,11 +689,11 @@
     else
     {
       // We are to kill a specific script.
-      ns.printf("[%s]-INFO: Looking for %s running on %s.", functionName, scriptName, target);      
+      //ns.printf("[%s]-INFO: Looking for %s running on %s.", functionName, scriptName, target);      
       
       const runningScripts = ns.ps(target);
 
-      ns.printf("[%s]-INFO: Found %d scripts running on %s.", functionName, runningScripts.length, target);
+      //ns.printf("[%s]-INFO: Found %d scripts running on %s.", functionName, runningScripts.length, target);
       for(let script of runningScripts)
       {
         // Check if the script is the one we want to kill.

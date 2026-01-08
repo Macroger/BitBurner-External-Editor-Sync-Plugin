@@ -37,6 +37,13 @@ async function main(ns) {
       runningScripts = ns.ps(target);
       if (runningScripts.length == 0) {
         ns.tprintf("SUCCESS: Script termination verified.\n\n");
+        const scriptFiles = ns.ls(target, ".js");
+        for (let file of scriptFiles) {
+          if (file !== "killAllScripts.js") {
+            ns.rm(file, target);
+            ns.tprintf("INFO: Removed %s from %s", file, target);
+          }
+        }
       } else {
         ns.tprintf("ERROR: Scripts still running, something went wrong with %s.", target);
       }

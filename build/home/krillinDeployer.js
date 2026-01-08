@@ -101,6 +101,7 @@ function getNumThreadsToReachGoal(ns, scriptName, goal, target, source = "remote
   const hackScriptName = localPrefix + "hack.js";
   const growScriptName = localPrefix + "grow.js";
   let threadsRequired = 0;
+  const THREAD_CAP = 1e4;
   if (scriptName == weakenScriptName) {
     const valueOfOneWeaken = ns.weakenAnalyze(1, serverCpuCount);
     const serverDecreaseRequired = ns.getServerSecurityLevel(target) - ns.getServerMinSecurityLevel(target);
@@ -108,10 +109,19 @@ function getNumThreadsToReachGoal(ns, scriptName, goal, target, source = "remote
   } else if (scriptName == hackScriptName) {
     threadsRequired = ns.hackAnalyzeThreads(target, goal);
   } else if (scriptName == growScriptName) {
-    threadsRequired = ns.growthAnalyze(target, goal, serverCpuCount);
+    let safeGoal = Math.max(goal, 1);
+    threadsRequired = ns.growthAnalyze(target, safeGoal, serverCpuCount);
+    if (threadsRequired > THREAD_CAP) {
+      ns.printf("[%s]-WARN: Calculated grow threads (%d) exceeds cap (%d) for %s. Capping to %d.", sectionName, threadsRequired, THREAD_CAP, target, THREAD_CAP);
+      threadsRequired = THREAD_CAP;
+    }
   }
-  const result = Math.ceil(threadsRequired);
-  ns.printf("[%s]-INFO: Number of threads required to reach goal: %d", sectionName, result);
+  let result = Math.ceil(threadsRequired);
+  if (result > THREAD_CAP) {
+    ns.printf("[%s]-WARN: Calculated threads (%d) exceeds cap (%d) for %s. Capping to %d.", sectionName, result, THREAD_CAP, target, THREAD_CAP);
+    result = THREAD_CAP;
+  }
+  ns.printf("[%s]-INFO: Number of threads required to reach goal of %d on %s: %d", sectionName, goal, target, result);
   return result;
 }
 function getNumCrackingPrograms(ns) {

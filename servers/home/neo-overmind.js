@@ -116,7 +116,7 @@ export async function main(ns)
                 launchScriptAttack(ns, weakenScript, target, target, minSec);
 
                 // Update next action time.
-                const actionCooldown = ns.getWeakenTime(target);
+                const actionCooldown = ns.getWeakenTime(target) + 250; // Add slight buffer time
                 serverStates[target].nextAction = Date.now() + actionCooldown;
                 break;
 
@@ -125,7 +125,7 @@ export async function main(ns)
               launchScriptAttack(ns, growScript, target, target, maxMoney);
 
               // Update next action time.
-              const growCooldown = ns.getGrowTime(target);
+              const growCooldown = ns.getGrowTime(target) + 250; // Add slight buffer time
               serverStates[target].nextAction = Date.now() + growCooldown;
               break;
 
@@ -134,7 +134,7 @@ export async function main(ns)
               launchScriptAttack(ns, hackScript, target, target, minMoney);
 
               // Update next action time.
-              const hackCooldown = ns.getHackTime(target);
+              const hackCooldown = ns.getHackTime(target) + 250; // Add slight buffer time
               serverStates[target].nextAction = Date.now() + hackCooldown;
               break;
 
