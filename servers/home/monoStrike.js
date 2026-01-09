@@ -37,7 +37,7 @@ import { getRootAccess, decideServerAction, launchScriptAttack } from "./myFunct
  *  Prepends a timestamp to log messages for better tracking.
  * @param {string} message - The message to log
  */
-function logWithTimestamp(message) 
+function logWithTimestamp(ns, message) 
 {
     const now = new Date();
     const timeStr = now.toTimeString().slice(0, 8); // HH:MM:SS
@@ -74,25 +74,27 @@ export async function main(ns)
     // Check for correct number of arguments
     if (ns.args.length < 1 || ns.args.length > 2) 
     {
-        logWithTimestamp(`[${selfName}] ERROR: Usage: run monoStrike.js [target] [reserveThreads=0]`);
+        logWithTimestamp(ns, `[${selfName}] ERROR: Usage: run monoStrike.js [target] [reserveThreads=0]`);
         ns.exit();
     }
+
+    // Check for reserve threads argument - optional, defaults to 0
+    const reserveThreads = ns.args.length > 1 ? Number(ns.args[1]) : 0;
    
     // Validate reserveThreads - must be a non-negative integer
     if (isNaN(reserveThreads) || reserveThreads < 0) 
     {
-        logWithTimestamp(`[${selfName}] ERROR: reserveThreads must be a non-negative integer.`);
+        logWithTimestamp(ns, `[${selfName}] ERROR: reserveThreads must be a non-negative integer.`);
         ns.exit();
     }
 
     const selfName = "monoStrike"; // Script name for logging
     const target = ns.args[0];  // Target server to attack
-        
-    // Check for reserve threads argument - optional, defaults to 0
-    const reserveThreads = ns.args.length > 1 ? Number(ns.args[1]) : 0;
 
     // Get the name of the current server this script is being run on
     const thisServer = ns.getServer().hostname; 
+
+    const defaultSleep = 2000; // Default sleep time if no action is taken
     
     // Setup references to the attack scripts
     const weakenScript = "local_weaken.js";
@@ -102,20 +104,20 @@ export async function main(ns)
     // Ensure root access
     if (!ns.hasRootAccess(target)) 
     {
-        logWithTimestamp(`[${selfName}] INFO: Attempting to gain root access to ${target}...`);
+        logWithTimestamp(ns, `[${selfName}] INFO: Attempting to gain root access to ${target}...`);
         if (!getRootAccess(ns, target)) 
         {
-            logWithTimestamp(`[${selfName}] ERROR: Could not gain root access to ${target}. Exiting.`);
+            logWithTimestamp(ns, `[${selfName}] ERROR: Could not gain root access to ${target}. Exiting.`);
             ns.exit();
         } 
         else 
         {
-            logWithTimestamp(`[${selfName}] SUCCESS: Root access obtained for ${target}.`);
+            logWithTimestamp(ns, `[${selfName}] SUCCESS: Root access obtained for ${target}.`);
         }
     }
 
     // Log start of attack loop
-    logWithTimestamp(`[${selfName}] SUCCESS: Starting attack loop on ${target} from ${thisServer}`);    
+    logWithTimestamp(ns, `[${selfName}] SUCCESS: Starting attack loop on ${target} from ${thisServer}`);    
 
     while (true) 
     {
@@ -145,7 +147,7 @@ export async function main(ns)
             const secPercent = ((curSec / goal) * 100).toFixed(1);
 
             // Log decision
-            logWithTimestamp(`[${selfName}] INFO: Decided to WEAKEN ${target}; Server Security: ${curSec.toFixed(1)} / ${goal.toFixed(1)} = ${secPercent}%`);
+            logWithTimestamp(ns, `[${selfName}] INFO: Decided to WEAKEN ${target}; Server Security: ${curSec.toFixed(1)} / ${goal.toFixed(1)} = ${secPercent}%`);
         }
         else if (action === "grow")
         {
@@ -153,20 +155,33 @@ export async function main(ns)
             // Always try to reach maxMoney for clarity
             goal = maxMoney / Math.max(curMoney, 1);
             growPreMoney = curMoney;
-            logWithTimestamp(`[${selfName}] INFO: Decided to GROW ${target}; Server Money: $${ns.formatNumber(curMoney)} / $${ns.formatNumber(maxMoney)}`);
+            logWithTimestamp(ns, `[${selfName}] INFO: Decided to GROW ${target}; Server Money: $${ns.formatNumber(curMoney)} / $${ns.formatNumber(maxMoney)}`);
         }
         else if (action === "hack")
         {
             script = hackScript;
             goal = curMoney;
             hackPreMoney = curMoney;
-            logWithTimestamp(`[${selfName}] INFO: Decided to HACK ${target}; Server Money: $${ns.formatNumber(curMoney)} / $${ns.formatNumber(maxMoney)}`);
+            logWithTimestamp(ns, `[${selfName}] INFO: Decided to HACK ${target}; Server Money: $${ns.formatNumber(curMoney)} / $${ns.formatNumber(maxMoney)}`);
         }
         else
         {
-            logWithTimestamp(`[${selfName}] WARN: No valid action for ${target}. Sleeping.`);
-            await ns.sleep(2000);
+            logWithTimestamp(ns, `[${selfName}] WARN: No valid action for ${target}. Sleeping.`);
+            await ns.sleep(defaultSleep);
             continue;
+        }
+
+        // If the appropriate script is already running on the target, skip launching a new one
+        const runningScripts = ns.ps(thisServer).filter(s => s.filename === script && s.args[0] === target);
+
+        if (runningScripts.length > 0)
+        {
+            logWithTimestamp(ns, `[${selfName}] INFO: Detected ${script} already running on ${target}. Sleeping for ${formatSleepTime(defaultSleep)}.`); 
+            
+            // Sleep for a short duration before re-evaluating
+            await ns.sleep(defaultSleep);
+
+            continue; // Skip launching a new script
         }
 
         // Use launchScriptAttack to handle threads, RAM, and execution
@@ -183,8 +198,14 @@ export async function main(ns)
 
         if (!attackSuccess)
         {
-            logWithTimestamp(`[${selfName}] WARN: Not enough RAM to run ${script} on ${target}. Sleeping.`);
+            logWithTimestamp(ns, `[${selfName}] WARN: Not enough RAM to run ${script} on ${target}. Sleeping for ${formatSleepTime(defaultSleep)}.`);
+
+            await ns.sleep(defaultSleep);
+
+            continue; // Skip further processing if attack did not run
         }
+        else
+        {}
 
         let sleepTime = 0;
         
@@ -196,32 +217,18 @@ export async function main(ns)
         // Create a sleep time based on the action time plus a buffer
 
         const sleepBuffer = 250; // 250ms buffer to ensure completion
-        let sleepMs = sleepTime + sleepBuffer;
-
-        // Check if the appropriate script is already running on the target
-        const runningScripts = ns.ps(thisServer).filter(s => s.filename === script && s.args[0] === target);
-
-        // If the appropriate script is already running, reduce sleep to 1/4 normal
-        if (runningScripts.length > 0) 
-        {
-            sleepMs = Math.max(sleepBuffer, Math.floor(sleepMs / 4));
-            logWithTimestamp(`[${selfName}] INFO: Detected ${script} already running on ${target}, reducing sleep to ${formatSleepTime(sleepMs)}.`);
-        } 
-        else 
-        {
-            logWithTimestamp(`[${selfName}] INFO: Sleeping for ${formatSleepTime(sleepMs)} after running ${script} on ${target}.`);
-        }
+        let sleepMs = sleepTime + sleepBuffer;     
+        
+        ns.tprintf(`[${selfName}] INFO: Sleeping for ${formatSleepTime(sleepMs)} after running ${script} on ${target}.`);
 
         await ns.sleep(sleepMs);
-
-        if (!attackSuccess) continue; // Skip logging results if attack did not run
 
         // After hack, log money gained by difference (may be affected by other scripts)
         if (action === "hack" && hackPreMoney !== null) 
         {
             const hackPostMoney = ns.getServerMoneyAvailable(target);
             const hackGain = hackPreMoney - hackPostMoney;
-            logWithTimestamp(`[${selfName}] SUCCESS: Hack on ${target} yielded $${ns.formatNumber(hackGain)} (before: $${ns.formatNumber(hackPreMoney)}, after: $${ns.formatNumber(hackPostMoney)})`);
+            logWithTimestamp(ns, `[${selfName}] SUCCESS: Hack on ${target} yielded $${ns.formatNumber(hackGain)} (before: $${ns.formatNumber(hackPreMoney)}, after: $${ns.formatNumber(hackPostMoney)})`);
         }
 
         // After grow, log money gained by difference (may be affected by other scripts)
@@ -229,7 +236,7 @@ export async function main(ns)
         {
             const growPostMoney = ns.getServerMoneyAvailable(target);
             const growGain = growPostMoney - growPreMoney;
-            logWithTimestamp(`[${selfName}] SUCCESS: Grow on ${target} yielded $${ns.formatNumber(growGain)} (before: $${ns.formatNumber(growPreMoney)}, after: $${ns.formatNumber(growPostMoney)})`);
+            logWithTimestamp(ns, `[${selfName}] SUCCESS: Grow on ${target} yielded $${ns.formatNumber(growGain)} (before: $${ns.formatNumber(growPreMoney)}, after: $${ns.formatNumber(growPostMoney)})`);
         }
     }
 }
