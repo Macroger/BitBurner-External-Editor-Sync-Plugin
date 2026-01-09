@@ -14,12 +14,12 @@ async function main(ns) {
     return;
   }
   var cost = ns.getPurchasedServerUpgradeCost(server, nextRam);
-  var confirm = await ns.prompt(`Upgrade ${server} from ${currentRam}GB to ${nextRam}GB for $${ns.nFormat(cost, "0.0a")}?`);
-  if (!confirm) {
-    ns.tprintf("Upgrade cancelled by user.");
+  var playerMoney = ns.getPlayer().money;
+  if (playerMoney < cost) {
+    ns.tprintf("ERROR: Not enough funds to upgrade %s to %d GB RAM. Required: $%s, Available: $%s", server, nextRam, ns.formatNumber(cost, 2), ns.formatNumber(playerMoney, 2));
     return;
   }
-  var playerMoneyBefore = ns.getPlayer().money;
+  var playerMoneyBefore = playerMoney;
   var success = ns.upgradePurchasedServer(server, nextRam);
   var playerMoneyAfter = ns.getPlayer().money;
   if (success) {

@@ -1,17 +1,25 @@
 /**
  * Deployer/manager script to copy attack scripts to all purchased servers and launch homeAttack.js on each.
- * Usage: run attackCoordinator.js [target]
+ * Usage: run attackCoordinator.js [target1] [target2] ...
  * @param {NS} ns
  */
 export async function main(ns) {
-    if (ns.args.length !== 1) {
-        ns.tprintf("Usage: run attackCoordinator.js [target]");
+    if (ns.args.length < 1) {
+        ns.tprintf("Usage: run attackCoordinator.js [target1] [target2] ...");
         ns.exit();
     }
-    const target = ns.args[0];
+    const targets = ns.args;
     const scripts = ["homeAttack.js", "local_hack.js", "local_grow.js", "local_weaken.js"];
     const purchasedServers = ns.getPurchasedServers();
-    for (const server of purchasedServers) {
+    if (targets.length > purchasedServers.length) {
+        ns.tprintf("Warning: More targets (%d) than purchased servers (%d). Some targets will NOT be assigned any server!", targets.length, purchasedServers.length);
+    } else if (purchasedServers.length < targets.length) {
+        ns.tprintf("Warning: Not enough purchased servers (%d) to attack all targets (%d). Some targets will not be attacked.", purchasedServers.length, targets.length);
+    }
+    // Assign servers to targets in round-robin fashion
+    for (let i = 0; i < purchasedServers.length; ++i) {
+        const server = purchasedServers[i];
+        const target = targets[i % targets.length];
         let copiedAny = false;
         // Copy scripts to purchased server if missing
         for (const script of scripts) {
@@ -26,24 +34,20 @@ export async function main(ns) {
         } else {
             ns.tprintf("[Update] Scripts already present on %s. Relaunching with new target.", server);
         }
-        
         // Kill any running homeAttack.js on the server
         ns.scriptKill("homeAttack.js", server);
-        
-        // Launch homeAttack.js on the purchased server targeting the specified target
-        const maxRam = ns.getServerMaxRam(server);
+        // Launch homeAttack.js on the purchased server targeting the assigned target
+        const freeRam = ns.getServerMaxRam(server) - ns.getServerUsedRam(server);
         const scriptRam = ns.getScriptRam("homeAttack.js", server);
-        const threads = Math.floor(maxRam / scriptRam);
-        
-        if (threads > 0) {
-            const pid = ns.exec("homeAttack.js", server, threads, target);
+        if (freeRam >= scriptRam) {
+            const pid = ns.exec("homeAttack.js", server, 1, target);
             if (pid !== 0) {
-                ns.tprintf("Launched homeAttack.js on %s with %d threads targeting %s", server, threads, target);
+                ns.tprintf("Launched homeAttack.js on %s with 1 thread targeting %s", server, target);
             } else {
                 ns.tprintf("ERROR: Failed to launch homeAttack.js on %s", server);
             }
         } else {
-            ns.tprintf("ERROR: Not enough RAM to run homeAttack.js on %s", server);
+            ns.tprintf("ERROR: Not enough free RAM to run homeAttack.js on %s (Required: %s, Available: %s)", server, ns.formatRam(scriptRam), ns.formatRam(freeRam));
         }
     }
 }

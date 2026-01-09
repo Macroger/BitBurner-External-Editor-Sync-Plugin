@@ -66,7 +66,6 @@ function getNumThreadsPossible(ns, scriptName, target, reserveThreads = 0) {
       numThreads = 0;
     }
   }
-  ns.printf("[%s]-INFO: determined that %d can be opened on %s.", functionName, numThreads, target);
   if (reserveThreads > 0) {
     ns.printf("[%s]-WARN: Detected reserve thread count of %d. Reducing thread count by this amount.", functionName, reserveThreads);
     numThreads = numThreads - reserveThreads;
@@ -137,7 +136,6 @@ function getNumThreadsToReachGoal(ns, scriptName, goal, target, source = "remote
     ns.printf("[%s]-WARN: Calculated threads (%d) exceeds cap (%d) for %s. Capping to %d.", sectionName, result, THREAD_CAP, target, THREAD_CAP);
     result = THREAD_CAP;
   }
-  ns.printf("[%s]-INFO: Number of threads required to reach goal of %d on %s: %d", sectionName, goal, target, result);
   return result;
 }
 function getNumCrackingPrograms(ns) {

@@ -201,7 +201,7 @@ export function getBestBotnetTarget(ns)
       }  
     }
 
-    ns.printf("[%s]-INFO: determined that %d can be opened on %s.", functionName, numThreads, target);
+    //ns.printf("[%s]-INFO: determined that %d can be opened on %s.", functionName, numThreads, target);
     if(reserveThreads > 0)
     {
       ns.printf("[%s]-WARN: Detected reserve thread count of %d. Reducing thread count by this amount.", functionName, reserveThreads);
@@ -327,7 +327,7 @@ export function getBestBotnetTarget(ns)
       result = THREAD_CAP;
     }
 
-    ns.printf("[%s]-INFO: Number of threads required to reach goal of %d on %s: %d", sectionName, goal, target, result);
+    //ns.printf("[%s]-INFO: Number of threads required to reach goal of %d on %s: %d", sectionName, goal, target, result);
 
     return result;
   }
