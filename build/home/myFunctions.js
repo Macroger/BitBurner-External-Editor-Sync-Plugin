@@ -97,11 +97,19 @@ function getNumThreadsPossible(ns, scriptName, target, reserveThreads = 0) {
   }
   return numThreads;
 }
-function launchScriptAttack(ns, scriptName, target, source, goal, reserveThreads = 0, localMode = false) {
+function launchScriptAttack(ns, scriptName, target, source, goal, maxAllowedThreads = 1e4, reserveThreads = 0, localMode = false) {
   const sectionName = "launchScriptAttack";
-  let functionResult = false;
   let numThreadsAvailable = 0;
   const desiredNumThreads = getNumThreadsToReachGoal(ns, scriptName, goal, target);
+  let resultObj = {
+    success: false,
+    threadCount: 0,
+    ramUsed: 0,
+    script: scriptName,
+    target,
+    error: null,
+    pid: null
+  };
   if (localMode == true) {
     numThreadsAvailable = getNumThreadsPossible(ns, scriptName, source, reserveThreads);
   } else {
@@ -109,28 +117,38 @@ function launchScriptAttack(ns, scriptName, target, source, goal, reserveThreads
   }
   if (desiredNumThreads === 0) {
     ns.printf("[%s]-INFO: No threads needed for %s on %s (goal already met or calculation returned zero). Skipping launch.", sectionName, scriptName, target);
-    return false;
+    resultObj.error = "No threads needed (goal met or zero calculation)";
+    return resultObj;
   }
+  let threadsToLaunch = 0;
   if (desiredNumThreads > 0 && desiredNumThreads < numThreadsAvailable) {
-    const result = ns.exec(scriptName, source, desiredNumThreads, target);
-    if (result == 0) {
-      ns.printf("[%s]-ERROR: Starting of script %s failed.\nAttempted to open %d threads.", sectionName, scriptName, desiredNumThreads);
-    } else {
-      ns.printf("[%s]-SUCCESS: Successfully opened up %d threads of %s on %s\n", sectionName, desiredNumThreads, scriptName, source);
-      functionResult = true;
-    }
+    threadsToLaunch = desiredNumThreads;
   } else if (numThreadsAvailable > 0) {
-    const result = ns.exec(scriptName, source, numThreadsAvailable, target);
-    if (result == 0) {
-      ns.printf("[%s]-ERROR: Starting of script %s failed.\nAttempted to open %d threads.", sectionName, scriptName, numThreadsAvailable);
-    } else {
-      ns.printf("[%s]-SUCCESS: Successfully opened up %d threads of %s on %s\n", sectionName, numThreadsAvailable, scriptName, source);
-      functionResult = true;
-    }
+    threadsToLaunch = numThreadsAvailable;
   } else {
     ns.printf("[%s]-WARN: Not enough RAM available to open any threads on %s.", sectionName, target);
+    resultObj.error = "Not enough RAM available";
+    return resultObj;
   }
-  return functionResult;
+  if (threadsToLaunch > maxAllowedThreads) {
+    ns.printf("[%s]-WARN: Capping threads to launch (%d) to max allowed (%d).", sectionName, threadsToLaunch, maxAllowedThreads);
+    threadsToLaunch = maxAllowedThreads;
+  }
+  const pid = ns.exec(scriptName, source, threadsToLaunch, target);
+  if (pid === 0) {
+    ns.printf("[%s]-ERROR: Starting of script %s failed.\nAttempted to open %d threads.", sectionName, scriptName, threadsToLaunch);
+    resultObj.error = `Script launch failed for ${scriptName} with ${threadsToLaunch} threads.`;
+    return resultObj;
+  } else {
+    const maxRam = ns.getServerMaxRam(source);
+    const ramUsed = threadsToLaunch * ns.getScriptRam(scriptName, source);
+    ns.printf("[%s]-SUCCESS: Opened %d threads of %s on %s, using %s / %s RAM ", sectionName, threadsToLaunch, scriptName, source, ns.formatRam(ramUsed), ns.formatRam(maxRam));
+    resultObj.success = true;
+    resultObj.threadCount = threadsToLaunch;
+    resultObj.ramUsed = ramUsed;
+    resultObj.pid = pid;
+    return resultObj;
+  }
 }
 function getNumThreadsToReachGoal(ns, scriptName, goal, target, source = "remote") {
   const sectionName = "getNumThreadsToReachGoal";
@@ -155,12 +173,16 @@ function getNumThreadsToReachGoal(ns, scriptName, goal, target, source = "remote
       ns.printf("[%s]-WARN: Calculated grow threads (%d) exceeds cap (%d) for %s. Capping to %d.", sectionName, threadsRequired, THREAD_CAP, target, THREAD_CAP);
       threadsRequired = THREAD_CAP;
     }
+  } else {
+    ns.printf("[%s]-ERROR: Unknown script name %s provided for thread calculation on %s.", sectionName, scriptName, target);
+    threadsRequired = 0;
   }
   let result = Math.ceil(threadsRequired);
   if (result > THREAD_CAP) {
     ns.printf("[%s]-WARN: Calculated threads (%d) exceeds cap (%d) for %s. Capping to %d.", sectionName, result, THREAD_CAP, target, THREAD_CAP);
     result = THREAD_CAP;
   }
+  ns.printf("[%s]-INFO: Number of threads required to reach goal of %d on %s: %d", sectionName, goal, target, result);
   return result;
 }
 function displayStats(ns, target) {
@@ -302,41 +324,21 @@ function scanForServers(ns, startingPoint = "home") {
   }
   return serverList;
 }
-function decideServerAction(ns, target) {
+function decideServerAction(ns, target, source = target) {
   let minSec = ns.getServerMinSecurityLevel(target);
   let curSec = ns.getServerSecurityLevel(target);
   let maxMoney = ns.getServerMaxMoney(target);
   let curMoney = ns.getServerMoneyAvailable(target);
   const weakenThreshold = Math.max(minSec * 1.05, minSec + 2);
-  const growThreshold = maxMoney * 0.95;
-  const hackThreshold = maxMoney * 0.75;
   if (curSec > weakenThreshold) {
-    const cpuCores = ns.getServer(target).cpuCores || 1;
+    const cpuCores = ns.getServer(source).cpuCores || 1;
     const weakenEffect = ns.weakenAnalyze(1, cpuCores);
     if (curSec - minSec >= weakenEffect) {
       return "weaken";
     }
   }
-  if (curSec <= minSec && curMoney >= maxMoney) {
-    if (ns.hackAnalyzeThreads(target, maxMoney) <= 0) {
-      return "idle";
-    }
-  }
-  if (curMoney < hackThreshold) {
-    return "grow";
-  } else if (curMoney >= growThreshold) {
-    if (ns.hackAnalyzeThreads(target, curMoney) > 0) {
-      return "hack";
-    } else {
-      return "idle";
-    }
-  }
-  if (curMoney >= hackThreshold && curMoney < growThreshold) {
-    if (ns.hackAnalyzeThreads(target, curMoney) > 0) {
-      return "hack";
-    } else {
-      return "idle";
-    }
+  if (curMoney >= maxMoney * 0.95) {
+    return "hack";
   }
   return "grow";
 }
@@ -370,11 +372,47 @@ function killScript(ns, scriptName, target = "home") {
     }
   }
 }
+function logWithTimestamp(ns, message, terminalMode = false) {
+  const now = /* @__PURE__ */ new Date();
+  const timeStr = now.toTimeString().slice(0, 8);
+  if (terminalMode) {
+    ns.tprint(`[${timeStr}] ${message}`);
+  } else {
+    ns.print(`[${timeStr}] ${message}`);
+  }
+}
+function formatSleepTime(ms) {
+  const totalSeconds = Math.floor(ms / 1e3);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  let result = "";
+  if (minutes > 0) result += `${minutes} minute${minutes !== 1 ? "s" : ""}`;
+  if (minutes > 0 && seconds > 0) result += " ";
+  if (seconds > 0) result += `${seconds} second${seconds !== 1 ? "s" : ""}`;
+  if (result === "") result = "less than 1 second";
+  return result;
+}
+function sortQueueByScore(ns, queue) {
+  queue.sort((a, b) => {
+    const aName = a.name || a;
+    const bName = b.name || b;
+    const aMaxMoney = ns.getServerMaxMoney(aName);
+    const aGrowth = ns.getServerGrowth(aName);
+    const aMinSec = ns.getServerMinSecurityLevel(aName);
+    const aScore = aMaxMoney > 0 && aMinSec > 0 ? aMaxMoney * aGrowth / aMinSec : -Infinity;
+    const bMaxMoney = ns.getServerMaxMoney(bName);
+    const bGrowth = ns.getServerGrowth(bName);
+    const bMinSec = ns.getServerMinSecurityLevel(bName);
+    const bScore = bMaxMoney > 0 && bMinSec > 0 ? bMaxMoney * bGrowth / bMinSec : -Infinity;
+    return bScore - aScore;
+  });
+}
 export {
   calculateGrowthRateMultiplier,
   decideServerAction,
   displayStats,
   ensureScriptExists,
+  formatSleepTime,
   getBestBotnetTarget,
   getNumCrackingPrograms,
   getNumThreadsPossible,
@@ -383,7 +421,9 @@ export {
   getValidServerList,
   killScript,
   launchScriptAttack,
+  logWithTimestamp,
   scanForAllServers,
   scanForServers,
+  sortQueueByScore,
   validateServer
 };

@@ -49,12 +49,12 @@ export async function main(ns)
             // ensureScriptExists returns true if script is present or successfully copied
             if (await ensureScriptExists(ns, script, server))
             {
-                ns.tprintf("Copied or verified %s on %s", script, server);
+                ns.printf("Copied or verified %s on %s", script, server);
                 copiedAny = true;
             }
             else
             {
-                ns.tprintf("ERROR: Failed to copy %s to %s", script, server);
+                ns.printf("ERROR: Failed to copy %s to %s", script, server);
             }
         }
         
@@ -74,16 +74,16 @@ export async function main(ns)
             const pid = ns.exec("monoStrike.js", server, 1, target);
             if (pid !== 0) 
             {
-                ns.tprintf("Launched monoStrike.js on %s with 1 thread targeting %s", server, target);
+                ns.printf("Launched monoStrike.js on %s with 1 thread targeting %s", server, target);
             } 
             else 
             {
-                ns.tprintf("ERROR: Failed to launch monoStrike.js on %s", server);
+                ns.printf("ERROR: Failed to launch monoStrike.js on %s", server);
             }
         } 
         else 
         {
-            ns.tprintf("ERROR: Not enough free RAM to run monoStrike.js on %s (Required: %s, Available: %s)", server, ns.formatRam(scriptRam), ns.formatRam(freeRam));
+            ns.printf("ERROR: Not enough free RAM to run monoStrike.js on %s (Required: %s, Available: %s)", server, ns.formatRam(scriptRam), ns.formatRam(freeRam));
         }
     }
 }

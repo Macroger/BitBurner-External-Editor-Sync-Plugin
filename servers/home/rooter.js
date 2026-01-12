@@ -48,7 +48,7 @@ export async function main(ns)
 
     if(ns.hasRootAccess(target) == false)
     {
-      ns.tprintf("INFO: %s has not been rooted.", target);
+      //ns.tprintf("INFO: %s has not been rooted.", target);
       rootResult = getRootAccess(ns, target);
       if(rootResult == true)
       {

@@ -122,7 +122,6 @@ async function main(ns) {
   function rootServer(target) {
     let rootResult = false;
     if (ns.hasRootAccess(target) == false) {
-      ns.tprintf("INFO: %s has not been rooted.", target);
       rootResult = getRootAccess(ns, target);
       if (rootResult == true) {
         ns.tprintf("SUCCESS: Root access has been granted to: %s", target);

@@ -1,4 +1,5 @@
 import { getRootAccess, decideServerAction, launchScriptAttack } from "./myFunctions.js";
+import { takeServerSnapshot, generateActionReport } from "./serverActionAnalyzer.js";
 
 /**
  * monoStrike.js
@@ -94,7 +95,8 @@ export async function main(ns)
     // Get the name of the current server this script is being run on
     const thisServer = ns.getServer().hostname; 
 
-    const defaultSleep = 2000; // Default sleep time if no action is taken
+    // Default sleep fraction for fallback (e.g., when script is already running or not enough RAM)
+    const fallbackSleepFraction = 0.33;
     
     // Setup references to the attack scripts
     const weakenScript = "local_weaken.js";
@@ -161,8 +163,9 @@ export async function main(ns)
         {
             script = hackScript;
             goal = curMoney;
+            const moneyPercent = ((curMoney / maxMoney) * 100).toFixed(1);
             hackPreMoney = curMoney;
-            logWithTimestamp(ns, `[${selfName}] INFO: Decided to HACK ${target}; Server Money: $${ns.formatNumber(curMoney)} / $${ns.formatNumber(maxMoney)}`);
+            logWithTimestamp(ns, `[${selfName}] INFO: Decided to HACK ${target}; Server Money: $${ns.formatNumber(curMoney)} / $${ns.formatNumber(maxMoney)} (${moneyPercent}% available)`);
         }
         else
         {
@@ -174,19 +177,26 @@ export async function main(ns)
         // If the appropriate script is already running on the target, skip launching a new one
         const runningScripts = ns.ps(thisServer).filter(s => s.filename === script && s.args[0] === target);
 
+        let actionSleepTime = 0;
+        if (script === weakenScript) actionSleepTime = ns.getWeakenTime(target);
+        else if (script === growScript) actionSleepTime = ns.getGrowTime(target);
+        else if (script === hackScript) actionSleepTime = ns.getHackTime(target);
+
         if (runningScripts.length > 0)
         {
-            logWithTimestamp(ns, `[${selfName}] INFO: Detected ${script} already running on ${target}. Sleeping for ${formatSleepTime(defaultSleep)}.`); 
-            
-            // Sleep for a short duration before re-evaluating
-            await ns.sleep(defaultSleep);
-
+            // Sleep for 33% of the action time if script is already running
+            const fallbackSleepMs = Math.max(250, Math.floor(actionSleepTime * fallbackSleepFraction));
+            logWithTimestamp(ns, `[${selfName}] INFO: Detected ${script} already running on ${target}. Sleeping for ${formatSleepTime(fallbackSleepMs)}.`);
+            await ns.sleep(fallbackSleepMs);
             continue; // Skip launching a new script
         }
 
+        // Utilize serverActionAnalzyer to create snapshots before and after the attack. A report can then be generated.
+        const preSnapshot = takeServerSnapshot(ns, target);
+
         // Use launchScriptAttack to handle threads, RAM, and execution
         // This function will handle all thread and RAM calculations and launch the script if possible
-        const attackSuccess = launchScriptAttack(
+        const attackResult = launchScriptAttack(
             ns,         // NS object
             script,     // Script to run
             target,     // Target server
@@ -196,16 +206,22 @@ export async function main(ns)
             true // localMode: Run scripts locally on home
         );
 
-        if (!attackSuccess)
+        if (attackResult.success == false)
         {
-            logWithTimestamp(ns, `[${selfName}] WARN: Not enough RAM to run ${script} on ${target}. Sleeping for ${formatSleepTime(defaultSleep)}.`);
-
-            await ns.sleep(defaultSleep);
-
-            continue; // Skip further processing if attack did not run
+            if(attackResult.reason === "Not enough RAM available")
+            {
+                // Sleep for 33% of the action time if not enough RAM
+                const fallbackSleepMs = Math.max(250, Math.floor(actionSleepTime * fallbackSleepFraction));
+                logWithTimestamp(ns, `[${selfName}] WARN: Not enough RAM to run ${script} on ${target}. Sleeping for ${formatSleepTime(fallbackSleepMs)}.`);
+                await ns.sleep(fallbackSleepMs);
+                continue; // Skip further processing if attack did not run
+            }
+            else
+            {
+                logWithTimestamp(ns, `[${selfName}] ERROR: Attack on ${target} failed due to unknown reason: ${attackResult.reason}.`);
+                continue; // Skip further processing if attack did not run
+            }            
         }
-        else
-        {}
 
         let sleepTime = 0;
         
@@ -219,24 +235,17 @@ export async function main(ns)
         const sleepBuffer = 250; // 250ms buffer to ensure completion
         let sleepMs = sleepTime + sleepBuffer;     
         
-        ns.tprintf(`[${selfName}] INFO: Sleeping for ${formatSleepTime(sleepMs)} after running ${script} on ${target}.`);
+        logWithTimestamp(ns, `[${selfName}] INFO: Sleeping for ${formatSleepTime(sleepMs)} after running ${script} on ${target}.`);
 
         await ns.sleep(sleepMs);
 
-        // After hack, log money gained by difference (may be affected by other scripts)
-        if (action === "hack" && hackPreMoney !== null) 
-        {
-            const hackPostMoney = ns.getServerMoneyAvailable(target);
-            const hackGain = hackPreMoney - hackPostMoney;
-            logWithTimestamp(ns, `[${selfName}] SUCCESS: Hack on ${target} yielded $${ns.formatNumber(hackGain)} (before: $${ns.formatNumber(hackPreMoney)}, after: $${ns.formatNumber(hackPostMoney)})`);
-        }
+        // Take post-attack snapshot and generate report
+        const threadCount = attackResult.threadCount;
+        const postSnapshot = takeServerSnapshot(ns, target);
 
-        // After grow, log money gained by difference (may be affected by other scripts)
-        else if (action === "grow" && growPreMoney !== null) 
-        {
-            const growPostMoney = ns.getServerMoneyAvailable(target);
-            const growGain = growPostMoney - growPreMoney;
-            logWithTimestamp(ns, `[${selfName}] SUCCESS: Grow on ${target} yielded $${ns.formatNumber(growGain)} (before: $${ns.formatNumber(growPreMoney)}, after: $${ns.formatNumber(growPostMoney)})`);
-        }
+        // Generate and log action report, including the server that launched the action
+        const actionReport = generateActionReport(preSnapshot, postSnapshot, action, threadCount, thisServer);
+        //ns.tprintf("%s", actionReport);
+        logWithTimestamp(ns, actionReport);
     }
 }

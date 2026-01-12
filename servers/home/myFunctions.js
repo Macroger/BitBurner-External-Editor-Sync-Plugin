@@ -214,73 +214,109 @@ export function getBestBotnetTarget(ns)
    * Launches a script attack on a target server using the specified script.
    *
    * @export
-   * @param {*} ns - The Bitburner Netscript API object.
+   * @param {NS} ns - The Bitburner Netscript API object.
    * @param {string} scriptName - The name of the script to be executed.
-   * @param {*} target - The hostname of the server to attack.
-   * @param {*} source - The hostname of the server from which the attack is launched.
+   * @param {string} target - The hostname of the server to attack.
+   * @param {string} source - The hostname of the server from which the attack is launched.
    * @param {*} goal - The goal value for the attack. This could represent money to hack, security to weaken, etc.
    * @param {number} [reserveThreads=0] - The number of threads to reserve and not use.
    * @param {boolean} [localMode=false] - Whether to calculate threads on the local (home) server.
-   * @return {boolean} - A boolean indicating whether the attack was successfully launched.
+   * @returns {Object} - An object containing details about the attack attempt:
+   *   {
+   *     success: boolean,      // Whether the attack was successfully launched
+   *     threadCount: number,   // Number of threads used
+   *     ramUsed: number,       // Total RAM used for the launch
+   *     script: string,        // Name of the script launched
+   *     target: string,        // Target server
+   *     error: string|null,    // Error message if unsuccessful
+   *     pid: number|null       // Process ID of the launched script (if successful)
+   *   }
    */
-  export function launchScriptAttack(ns, scriptName, target, source, goal, reserveThreads=0, localMode=false)
+  export function launchScriptAttack(ns, scriptName, target, source, goal, maxAllowedThreads = 10000, reserveThreads=0, localMode=false)
   {
     const sectionName = "launchScriptAttack";
-
-    // This function launches the attack for what ever script is 
-    // fed into it.
-    let functionResult = false;
-
     let numThreadsAvailable = 0;
-    
     const desiredNumThreads = getNumThreadsToReachGoal(ns, scriptName, goal, target);
+    let resultObj = {
+      success: false,
+      threadCount: 0,
+      ramUsed: 0,
+      script: scriptName,
+      target: target,
+      error: null,
+      pid: null
+    };
 
-    // If localMode is true this function will calculate how many threads are possible
-    // on the local server, using the source variable provided to getNumThreadsPossible.
     if(localMode == true)
     {
-      // Determine how many threads there is room for on the local server.
       numThreadsAvailable = getNumThreadsPossible(ns, scriptName, source, reserveThreads);
     }
     else
     {
-      // Determine how many threads there is room for on the remote server.
       numThreadsAvailable = getNumThreadsPossible(ns, scriptName, target, reserveThreads);
-    } 
-
-    //ns.printf("[%s]-INFO: Goal value: %d, script: %s ", sectionName, goal, scriptName);   
-
-    //ns.printf("[%s]-INFO: Determined %d threads required to get to goal on %s.", sectionName, desiredNumThreads, target);
+    }
 
     if (desiredNumThreads === 0) 
     {
       ns.printf("[%s]-INFO: No threads needed for %s on %s (goal already met or calculation returned zero). Skipping launch.", sectionName, scriptName, target);
-      return false;
+      resultObj.error = "No threads needed (goal met or zero calculation)";
+      return resultObj;
     }
 
-    if (desiredNumThreads > 0 && desiredNumThreads < numThreadsAvailable) {
-        const result = ns.exec(scriptName, source, desiredNumThreads, target);
-        if (result == 0) {
-            ns.printf("[%s]-ERROR: Starting of script %s failed.\nAttempted to open %d threads.", sectionName, scriptName, desiredNumThreads);
-        } else {
-            ns.printf("[%s]-SUCCESS: Successfully opened up %d threads of %s on %s\n", sectionName, desiredNumThreads, scriptName, source);
-            functionResult = true;
-        }
-    } else if (numThreadsAvailable > 0) {
-        const result = ns.exec(scriptName, source, numThreadsAvailable, target);
-        if (result == 0) {
-            ns.printf("[%s]-ERROR: Starting of script %s failed.\nAttempted to open %d threads.", sectionName, scriptName, numThreadsAvailable);
-        } else {
-            ns.printf("[%s]-SUCCESS: Successfully opened up %d threads of %s on %s\n", sectionName, numThreadsAvailable, scriptName, source);
-            functionResult = true;
-        }
-    } else {
-        ns.printf("[%s]-WARN: Not enough RAM available to open any threads on %s.", sectionName, target);
+    let threadsToLaunch = 0;
+    if (desiredNumThreads > 0 && desiredNumThreads < numThreadsAvailable) 
+    {
+      threadsToLaunch = desiredNumThreads;
     }
-    
-    return functionResult;    
+    else if (numThreadsAvailable > 0)
+    {
+      threadsToLaunch = numThreadsAvailable;
+    }
+    else
+    {
+      ns.printf("[%s]-WARN: Not enough RAM available to open any threads on %s.", sectionName, target);
+      resultObj.error = "Not enough RAM available";
+      return resultObj;
+    }
+
+    if (threadsToLaunch > maxAllowedThreads)
+    {
+      ns.printf("[%s]-WARN: Capping threads to launch (%d) to max allowed (%d).", sectionName, threadsToLaunch, maxAllowedThreads);
+      threadsToLaunch = maxAllowedThreads;
+    }
+
+    const pid = ns.exec(scriptName, source, threadsToLaunch, target);
+    if (pid === 0)
+    {
+      ns.printf("[%s]-ERROR: Starting of script %s failed.\nAttempted to open %d threads.", sectionName, scriptName, threadsToLaunch);
+      resultObj.error = `Script launch failed for ${scriptName} with ${threadsToLaunch} threads.`;
+      return resultObj;
+    }
+    else
+    {
+      const maxRam = ns.getServerMaxRam(source);
+      const ramUsed = threadsToLaunch * ns.getScriptRam(scriptName, source);
+      ns.printf("[%s]-SUCCESS: Opened %d threads of %s on %s, using %s / %s RAM ", sectionName, threadsToLaunch, scriptName, source, ns.formatRam(ramUsed), ns.formatRam(maxRam));
+      resultObj.success = true;
+      resultObj.threadCount = threadsToLaunch;
+      resultObj.ramUsed = ramUsed;
+      resultObj.pid = pid;
+      return resultObj;
+    }
   }
 
+  /**
+   * Calculates the number of threads required to reach a specified goal on a target server using a given script.
+   * Examples of goals include money to hack, security to weaken, etc.
+   *
+   * @export
+   * @param {*} ns - The Bitburner Netscript API object.
+   * @param {*} scriptName - The name of the script to be executed.
+   * @param {*} goal - The target goal value (e.g., money to hack, security to weaken).
+   * @param {*} target - The hostname of the server to target.
+   * @param {*} source - The hostname of the server from which the script will be run.
+   * @returns {number} - The number of threads required to reach the goal.
+   */
   export function getNumThreadsToReachGoal(ns, scriptName, goal, target, source="remote")
   {
     const sectionName = "getNumThreadsToReachGoal";
@@ -319,6 +355,11 @@ export function getBestBotnetTarget(ns)
         threadsRequired = THREAD_CAP;
       }
     }
+    else
+    {
+      ns.printf("[%s]-ERROR: Unknown script name %s provided for thread calculation on %s.", sectionName, scriptName, target);
+      threadsRequired = 0;
+    }
 
     // General cap for all thread calculations
     let result = Math.ceil(threadsRequired);
@@ -327,7 +368,7 @@ export function getBestBotnetTarget(ns)
       result = THREAD_CAP;
     }
 
-    //ns.printf("[%s]-INFO: Number of threads required to reach goal of %d on %s: %d", sectionName, goal, target, result);
+    ns.printf("[%s]-INFO: Number of threads required to reach goal of %d on %s: %d", sectionName, goal, target, result);
 
     return result;
   }
@@ -652,58 +693,39 @@ export function getBestBotnetTarget(ns)
    * Decides the next action to take on a server based on its current state.
    * @param {*} ns - The Bitburner Netscript API object.
    * @param {*} target - The hostname of the server to analyze.
+   * @param {*} source - The hostname of the server from which the analysis is performed (default is the target server).
    * @returns - string - The next action to take: "weaken", "grow", or "hack".
    */
-  export function decideServerAction(ns, target) 
+  export function decideServerAction(ns, target, source = target) 
   {  
-    let minSec = ns.getServerMinSecurityLevel(target);
-    let curSec = ns.getServerSecurityLevel(target);
-    let maxMoney = ns.getServerMaxMoney(target);
-    let curMoney = ns.getServerMoneyAvailable(target);
+      let minSec = ns.getServerMinSecurityLevel(target);
+      let curSec = ns.getServerSecurityLevel(target);
+      let maxMoney = ns.getServerMaxMoney(target);
+      let curMoney = ns.getServerMoneyAvailable(target);
 
-    // Threshold for when to begin weakening: max of 5% above minSec or minSec + 2
-    const weakenThreshold = Math.max(minSec * 1.05, minSec + 2);
-    const growThreshold = maxMoney * 0.95; // Grow until 95% of maxMoney
-    const hackThreshold = maxMoney * 0.75; // Hack until 75% of maxMoney
+      // Threshold for when to begin weakening: max of 5% above minSec or minSec + 2
+      const weakenThreshold = Math.max(minSec * 1.05, minSec + 2);
 
-    // Only return 'weaken' if the security difference is at least the effect of one weaken thread
-    if (curSec > weakenThreshold) {
-      const cpuCores = ns.getServer(target).cpuCores || 1;
-      const weakenEffect = ns.weakenAnalyze(1, cpuCores);
-      if ((curSec - minSec) >= weakenEffect) {
-        return "weaken";
+      // Only return 'weaken' if the security difference is at least the effect of one weaken thread
+      if (curSec > weakenThreshold) 
+      {
+          const cpuCores = ns.getServer(source).cpuCores || 1;
+          const weakenEffect = ns.weakenAnalyze(1, cpuCores);
+          if ((curSec - minSec) >= weakenEffect) 
+          {
+              return "weaken";
+          }
+          // If not enough to justify a weaken, fall through to grow/hack logic
       }
-      // If not enough to justify a weaken, fall through to grow/hack logic
-    }
 
-    // If at min security and max money, check if there's actually money to hack
-    if (curSec <= minSec && curMoney >= maxMoney) {
-      // If hackAnalyzeThreads returns 0, nothing to hack
-      if (ns.hackAnalyzeThreads(target, maxMoney) <= 0) {
-        return "idle";
+      // Only hack when money is at least 95% of maxMoney
+      if (curMoney >= maxMoney * 0.95) 
+      {
+          return "hack";
       }
-    }
 
-    if (curMoney < hackThreshold) {
+      // Otherwise, grow
       return "grow";
-    } else if (curMoney >= growThreshold) {
-      // Only return hack if there is actually money to hack
-      if (ns.hackAnalyzeThreads(target, curMoney) > 0) {
-        return "hack";
-      } else {
-        return "idle";
-      }
-    }
-    // If between 75% and 95%, keep hacking
-    if (curMoney >= hackThreshold && curMoney < growThreshold) {
-      if (ns.hackAnalyzeThreads(target, curMoney) > 0) {
-        return "hack";
-      } else {
-        return "idle";
-      }
-    }
-    // Default to grow
-    return "grow";
   }
 
   /**
@@ -769,5 +791,71 @@ export function getBestBotnetTarget(ns)
       }
     }
   }
+
+  /**
+ *  Prepends a timestamp to log messages for better tracking.
+ * @param {string} message - The message to log
+ */
+/**
+ * Logs a message with a timestamp. By default, logs to the internal log (ns.printf).
+ * If terminalMode is true, logs to the terminal (ns.tprintf).
+ * @param {NS} ns
+ * @param {string} message
+ * @param {boolean} [terminalMode=false] - If true, use ns.tprintf; otherwise, use ns.printf
+ */
+export function logWithTimestamp(ns, message, terminalMode = false) 
+{
+  const now = new Date();
+  const timeStr = now.toTimeString().slice(0, 8); // HH:MM:SS
+  if (terminalMode) {
+    ns.tprint(`[${timeStr}] ${message}`);
+  } else {
+    ns.print(`[${timeStr}] ${message}`);
+  }
+}
+
+/**
+ * Formats a sleep time in milliseconds into a human-readable string.
+ * Uses the format "X minute(s) Y second(s)".
+ *
+ * @param {number} ms - Sleep time in milliseconds
+ * @return {string} - Formatted string representing the sleep time
+ */
+export function formatSleepTime(ms) 
+{
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    let result = "";
+    if (minutes > 0) result += `${minutes} minute${minutes !== 1 ? "s" : ""}`;
+    if (minutes > 0 && seconds > 0) result += " ";
+    if (seconds > 0) result += `${seconds} second${seconds !== 1 ? "s" : ""}`;
+    if (result === "") result = "less than 1 second";
+    return result;
+}
+
+/**
+ * This function sorts a queue of servers based on their calculated score.
+ * The score is determined by the formula: (maxMoney * growth) / minSec
+ *
+ * @export
+ * @param {*} queue - An array of server hostnames or objects with a 'name' property.
+ */
+export function sortQueueByScore(ns, queue) {
+    // Score: (maxMoney * growth) / minSec
+    queue.sort((a, b) => {
+        const aName = a.name || a;
+        const bName = b.name || b;
+        const aMaxMoney = ns.getServerMaxMoney(aName);
+        const aGrowth = ns.getServerGrowth(aName);
+        const aMinSec = ns.getServerMinSecurityLevel(aName);
+        const aScore = (aMaxMoney > 0 && aMinSec > 0) ? (aMaxMoney * aGrowth) / aMinSec : -Infinity;
+        const bMaxMoney = ns.getServerMaxMoney(bName);
+        const bGrowth = ns.getServerGrowth(bName);
+        const bMinSec = ns.getServerMinSecurityLevel(bName);
+        const bScore = (bMaxMoney > 0 && bMinSec > 0) ? (bMaxMoney * bGrowth) / bMinSec : -Infinity;
+        return bScore - aScore;
+    });
+}
 
   
