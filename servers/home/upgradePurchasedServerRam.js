@@ -56,20 +56,23 @@ export async function main(ns) {
     }
     var server = ns.args[0];
     // Validate server name
-    if (!server || server === "-y") {
+    if (!server || server === "-y") 
+    {
         ns.tprintf("ERROR: You must provide a valid server name as the first argument.");
         ns.tprintf("Usage: run upgradePurchasedServerRAM.js [serverName] [targetRam] [-y]");
         return;
     }
     
     // Check if server exists
-    if (!ns.serverExists(server)) {
+    if (!ns.serverExists(server)) 
+    {
         ns.tprintf("ERROR: Server '%s' does not exist.", server);
         return;
     }
 
     // Check if server is a purchased server
-    if (!ns.getPurchasedServers().includes(server)) {
+    if (!ns.getPurchasedServers().includes(server)) 
+    {
         ns.tprintf("ERROR: Server '%s' is not a purchased server.", server);
         return;
     }
@@ -78,19 +81,25 @@ export async function main(ns) {
     var currentRam = ns.getServerMaxRam(server);
     var maxRam = ns.getPurchasedServerMaxRam();
 
+    let targetRam;
+    let confirmFlagPresent = false;
+
     // If only server name is provided, show cost of next upgrade
-    if (ns.args.length === 1) {
+    if (ns.args.length === 1) 
+    {
         
         // Determine how much RAM to upgrade to (next power of 2)
         var nextRam = currentRam * 2;
-        if (nextRam > maxRam) {
+        if (nextRam > maxRam) 
+        {
             ns.tprintf("ERROR: %s is already at max RAM (%d GB).", server, maxRam);
             return;
         }
 
         // Show cost of next upgrade
         var cost = ns.getPurchasedServerUpgradeCost(server, nextRam);
-        if (cost === -1) {
+        if (cost === -1) 
+        {
             ns.tprintf("ERROR: Unable to calculate cost for upgrade to %d GB RAM. Check if the value is valid.", nextRam);
             return;
         }
@@ -98,25 +107,54 @@ export async function main(ns) {
         ns.tprintf("Run with -y to confirm and perform the upgrade.");
         return;
     }
+    else if (ns.args.length === 2) 
+    {
 
-    // If server name and target RAM are provided
-    
-    // Get the user's desired target RAM
-    var targetRam = parseInt(ns.args[1], 10);
+        // Arg length is 2 - we need to determine if the second argument is the target RAM or the confirmation flag
+        // Check if the second argument is the confirmation flag
+        if (ns.args[1] === "-y") 
+        {
 
-    // Check if the 3rd argument is the confirmation flag
-    var confirm = ns.args[2] === "-y";
+            // The -y flag has been provided without a target RAM value,
+            // set the target ram to the next power of 2 and perform the upgrade
+            targetRam = currentRam * 2;
+            confirmFlagPresent = true;
+        }
+        else
+        {
+            // The second argument is the target RAM value
+            targetRam = parseInt(ns.args[1], 10);
+        }
+    }
+    else if (ns.args.length === 3) 
+    {
+        // Arg length is 3 - that means this arg list should include Hostname, target RAM, and confirmation flag
+
+        // Get the target RAM from the 2nd argument
+        targetRam = parseInt(ns.args[1], 10);
+        
+        // Check to ensure the 3rd argument is the confirmation flag
+        if( ns.args[2] === "-y" )
+        {
+             confirmFlagPresent = true;
+        }
+    }
 
     // Validate target RAM
-    if (isNaN(targetRam) || targetRam <= currentRam) {
+    if (isNaN(targetRam) || targetRam <= currentRam) 
+    {
         ns.tprintf("ERROR: Target RAM must be greater than current RAM (%d GB).", currentRam);
         return;
     }
 
     // If targetRam is not a power of 2, round up to the next power of 2 and warn the user
     function isPowerOf2(x) { return (x & (x - 1)) === 0; }
+    
     let originalTargetRam = targetRam;
-    if (!isPowerOf2(targetRam)) {
+    
+    // Check if target RAM is a power of 2
+    if (!isPowerOf2(targetRam)) 
+    {
         // Round up to next power of 2
         let nextPower = 1;
         while (nextPower < targetRam) nextPower *= 2;
@@ -134,6 +172,7 @@ export async function main(ns) {
     let curveTotalCost = 0;
     let stepRam = currentRam;
     let curveBreakdown = [];
+    
     while (stepRam < targetRam) {
         let nextRam = stepRam * 2;
         let curveCost = Math.round(estimateStepCost(nextRam));
@@ -143,7 +182,8 @@ export async function main(ns) {
     }
     
     // Check if the user has confirmed the upgrade, if not display the total cost and exit
-    if (!confirm) {
+    if (!confirmFlagPresent) 
+    {
         ns.tprintf("INFO: Upgrade cost breakdown for %s:", server);
         for (const step of curveBreakdown) {
             ns.tprintf("  %d GB → %d GB: $%s", step.from, step.to, ns.formatNumber(step.cost, 2));
@@ -155,8 +195,10 @@ export async function main(ns) {
 
     // Get player's available money
     var playerMoney = ns.getPlayer().money;
-    // Check if player has enough money
-    if (playerMoney < curveTotalCost) {
+    
+    // Check if player has enough money    
+    if (playerMoney < curveTotalCost) 
+    {
         ns.tprintf("ERROR: Not enough funds to upgrade %s to %d GB RAM. Required: $%s, Available: $%s", server, targetRam, ns.formatNumber(curveTotalCost, 2), ns.formatNumber(playerMoney, 2));
         return;
     }
@@ -168,18 +210,24 @@ export async function main(ns) {
     let success = true;
     stepRam = currentRam;
     ns.tprintf("Upgrade steps for %s:", server);
-    while (stepRam < targetRam && success) {
+    while (stepRam < targetRam && success) 
+    {
         let nextRam = stepRam * 2;
         let curveCost = Math.round(estimateStepCost(nextRam));
         ns.tprintf("  %d GB → %d GB: $%s", stepRam, nextRam, ns.formatNumber(curveCost, 2));
         success = ns.upgradePurchasedServer(server, nextRam);
         stepRam = nextRam;
     }
+
     var playerMoneyAfter = ns.getPlayer().money;
-    if (success && stepRam === targetRam) {
+    
+    if (success && stepRam === targetRam) 
+    {
         var spent = playerMoneyBefore - playerMoneyAfter;
         ns.tprintf("SUCCESS: %s upgraded to %d GB RAM. Funds spent: $%s", server, targetRam, ns.formatNumber(spent, 2));
-    } else {
+    } 
+    else 
+    {
         ns.tprintf("ERROR: Could not upgrade %s to %d GB RAM. Check funds and upgrade limits.", server, targetRam);
     }
 }

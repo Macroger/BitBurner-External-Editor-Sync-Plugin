@@ -1,5 +1,8 @@
+
+
 /** @param {NS} ns */
-import {scanForAllServers, getBestBotnetTarget, getValidServerList} from "./myFunctions.js";
+import {scanForAllServers, getBestBotnetTarget, getValidServerList, findPathToServer} from "./myFunctions.js";
+
 
 // A more advanced server sniffer script with improved formatting and additional details.
 // This script displays server information in a structured format with color coding for better readability.
@@ -7,17 +10,73 @@ import {scanForAllServers, getBestBotnetTarget, getValidServerList} from "./myFu
 
 
 /**
- * Prints detailed, color-coded information about a BitBurner server in a structured format.
- *
- * @param {NS} ns - The BitBurner Netscript API object.
- * @param {string} target - The hostname of the server to display information for.
- * @param {number|null} [index=null] - (Optional) The index of the server in a list, for display (e.g., "Server 2 of 5").
- * @param {number|null} [total=null] - (Optional) The total number of servers in the list, for display.
- *
- * Displays hacking skill, security (current/min), growth rate, grow/weaken/hack times, money, RAM, root access, and running scripts.
+ * Prints a visual ASCII path from home to the target server.
+ * @param {NS} ns - The Bitburner Netscript API object.
+ * @param {string[]} pathArr - Array of hostnames from home to target.
  */
+function printPathVisual(ns, pathArr) {
+    if (!Array.isArray(pathArr) || pathArr.length === 0) 
+    {
+        ns.tprintf("[Path] No path found.");
+        return;
+    }
 
-// Print a one-line summary for a server
+    let prefix = "";
+    
+    for (let i = 0; i < pathArr.length; i++) 
+    {
+        if (i === 0) {
+            ns.tprintf("%s", pathArr[i]);
+        } 
+        else 
+        {
+            prefix += "     ";
+            ns.tprintf("%s└── %s", prefix, pathArr[i]);
+        }
+    }
+}
+
+/**
+ * getTargetConnectionPath: Returns an array of colorized server names for the path from home to the target server.
+ * First and last nodes are cyan, intermediate nodes are rainbow gradient.
+ * @param {string[]} pathArr - Array of hostnames from home to target.
+ * @returns {string[]} - Array of colorized server names.
+ */
+function getTargetConnectionPath(pathArr) 
+{
+    if (!Array.isArray(pathArr) || pathArr.length === 0) 
+    {
+        return ["[Path] No path found."];
+    }
+
+    const rainbowColors = [196, 202, 208, 220, 46, 51, 27, 93, 201];
+    const cyan = "\u001b[36m";
+    const reset = "\u001b[0m";
+    let colored = [];
+
+    for (let i = 0; i < pathArr.length; i++) 
+    {
+        if (i === 0 || i === pathArr.length - 1) 
+        {
+            colored.push(`${cyan}${pathArr[i]}${reset}`);
+        } 
+        else 
+        {
+            let colorIdx = Math.floor((i - 1) * (rainbowColors.length - 1) / (pathArr.length - 2));
+            let colorCode = rainbowColors[colorIdx];
+            colored.push(`\u001b[38;5;${colorCode}m${pathArr[i]}${reset}`);
+        }
+    }
+    return colored;
+}
+
+/**
+ * printServerSummary: Prints a concise, color-coded summary of a BitBurner server's key stats in a single line.
+ * @param {*} ns - The BitBurner Netscript API object.
+ * @param {*} server - The server object to summarize.
+ * @param {*} idx - The index of the server in the list.
+ * @param {*} total - The total number of servers in the list.
+ */
 function printServerSummary(ns, server, idx, total) {
     const cyan = "\u001b[36m";
     const green = "\u001b[32m";
@@ -52,7 +111,17 @@ function printServerSummary(ns, server, idx, total) {
     ns.tprintf("──────────────────────────────────────────────────────────────────────────────────────────────────────");
 }
 
-// Print detailed info for a server (existing logic)
+/**
+ * Name: printServerInfo
+ * Prints detailed, color-coded information about a BitBurner server in a structured format.
+ *
+ * @param {NS} ns - The BitBurner Netscript API object.
+ * @param {string} target - The hostname of the server to display information for.
+ * @param {number|null} [index=null] - (Optional) The index of the server in a list, for display (e.g., "Server 2 of 5").
+ * @param {number|null} [total=null] - (Optional) The total number of servers in the list, for display.
+ *
+ * Displays hacking skill, security (current/min), growth rate, grow/weaken/hack times, money, RAM, root access, and running scripts.
+ */
 function printServerInfo(ns, target, index = null, total = null) {
     
     // Some custom colors
@@ -66,6 +135,12 @@ function printServerInfo(ns, target, index = null, total = null) {
     // Get running scripts on the target server
     const runningScripts = ns.ps(target);
 
+    // Get the path from home to the target server
+    const pathArr = findPathToServer(ns, target);
+
+    // Determine lock icon based on root access
+    const lock = ns.hasRootAccess(target) ? "🔓" : "🔒";
+
     // Helper functions for formatting
     const label = (txt) => `${pastelPink}${txt.padEnd(30)}${reset}`;
     const value = (txt, color=reset) => `${color}${txt}${reset}`;
@@ -77,6 +152,9 @@ function printServerInfo(ns, target, index = null, total = null) {
     const weakSecs = Math.floor((ns.getWeakenTime(target) / 1000) % 60);
     const hackMins = Math.floor(ns.getHackTime(target) / 1000 / 60);
     const hackSecs = Math.floor((ns.getHackTime(target) / 1000) % 60);
+
+    // let targetConnectionPath = getTargetConnectionPath(pathArr);
+    // let formattedConnectionPath = targetConnectionPath.join(`${cyan} -> ${reset}`);
 
     // Print header
     if (index !== null && total !== null) 
@@ -97,13 +175,35 @@ function printServerInfo(ns, target, index = null, total = null) {
     ns.tprintf("%s%s minutes %s seconds", label("Hack time:"), value(hackMins, cyan), value(hackSecs, cyan));
     ns.tprintf("%s%s / %s", label("Money (Avail/Max):"), value(`$${ns.formatNumber(ns.getServerMoneyAvailable(target), 1, 1000, true)}`, cyan), value(`$${ns.formatNumber(ns.getServerMaxMoney(target), 2, 1000, true)}`, green));
     ns.tprintf("%s%s / %s", label("RAM (Used/Total):"), value(ns.formatRam(ns.getServerUsedRam(target)), (ns.getServerUsedRam(target) === ns.getServerMaxRam(target)) ? red : cyan), value(ns.formatRam(ns.getServerMaxRam(target)), green));
-    const lock = ns.hasRootAccess(target) ? "🔓" : "🔒";
     ns.tprintf("%s%s %s%s", label("Root access status:"), lock, ns.hasRootAccess(target) ? value("Granted", green) : value("Not Granted", red), reset);
-    if (runningScripts.length === 0) {
+    // ns.tprintf("%s%s", label(`Path to target:`), value(formattedConnectionPath, cyan));
+    const colorizedPathArr = getTargetConnectionPath(pathArr);
+    const chunkSize = 4;
+    const arrow = `${cyan}->${reset}`;
+    const labelText = label("Path to target:");
+    const labelPad = label(""); // just the padding
+
+    for (let i = 0; i < colorizedPathArr.length; i += chunkSize) 
+    {
+        const isLastChunk = (i + chunkSize >= colorizedPathArr.length);
+        let chunkArr = colorizedPathArr.slice(i, i + chunkSize);
+        let chunk = chunkArr.join(` ${arrow} `);
+        if (!isLastChunk) {
+            // For all but the last chunk, append an arrow after the chunk
+            chunk = `${chunk} ${arrow}`;
+        }
+        ns.tprintf("%s%s", i === 0 ? labelText : labelPad, chunk);
+    }
+
+    if (runningScripts.length === 0) 
+    {
         ns.tprintf("%s%s", label("Running scripts:"), value("None detected.", green));
-    } else {
+    } 
+    else 
+    {
         ns.tprintf("%s", label("Scripts running:"));
-        for (let script of runningScripts) {
+        for (let script of runningScripts) 
+        {
             ns.tprintf("  %s%s%s %s%s%s", green, script.filename, reset, cyan, script.args && script.args.length > 0 ? `[${script.args.join(", ")}]` : "", reset);
         }
     }
@@ -289,6 +389,7 @@ export async function main(ns) {
 
         // Finally, print detailed info for the target server   
         printServerInfo(ns, target);
+
         return;
     }
     else if (filterMode)

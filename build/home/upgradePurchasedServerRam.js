@@ -57,6 +57,8 @@ async function main(ns) {
   }
   var currentRam = ns.getServerMaxRam(server);
   var maxRam = ns.getPurchasedServerMaxRam();
+  let targetRam;
+  let confirmFlagPresent = false;
   if (ns.args.length === 1) {
     var nextRam = currentRam * 2;
     if (nextRam > maxRam) {
@@ -71,9 +73,19 @@ async function main(ns) {
     ns.tprintf("INFO: Cost to upgrade %s from %d GB to %d GB RAM: $%s", server, currentRam, nextRam, ns.formatNumber(cost, 2));
     ns.tprintf("Run with -y to confirm and perform the upgrade.");
     return;
+  } else if (ns.args.length === 2) {
+    if (ns.args[1] === "-y") {
+      targetRam = currentRam * 2;
+      confirmFlagPresent = true;
+    } else {
+      targetRam = parseInt(ns.args[1], 10);
+    }
+  } else if (ns.args.length === 3) {
+    targetRam = parseInt(ns.args[1], 10);
+    if (ns.args[2] === "-y") {
+      confirmFlagPresent = true;
+    }
   }
-  var targetRam = parseInt(ns.args[1], 10);
-  var confirm = ns.args[2] === "-y";
   if (isNaN(targetRam) || targetRam <= currentRam) {
     ns.tprintf("ERROR: Target RAM must be greater than current RAM (%d GB).", currentRam);
     return;
@@ -102,7 +114,7 @@ async function main(ns) {
     curveTotalCost += curveCost;
     stepRam = nextRam2;
   }
-  if (!confirm) {
+  if (!confirmFlagPresent) {
     ns.tprintf("INFO: Upgrade cost breakdown for %s:", server);
     for (const step of curveBreakdown) {
       ns.tprintf("  %d GB \u2192 %d GB: $%s", step.from, step.to, ns.formatNumber(step.cost, 2));

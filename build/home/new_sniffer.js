@@ -1,4 +1,25 @@
 // servers/home/myFunctions.js
+function findPathToServer(ns, target) {
+  const visited = /* @__PURE__ */ new Set();
+  const path = [];
+  function dfs(current) {
+    visited.add(current);
+    path.push(current);
+    if (current === target) return true;
+    for (const neighbor of ns.scan(current)) {
+      if (!visited.has(neighbor)) {
+        if (dfs(neighbor)) return true;
+      }
+    }
+    path.pop();
+    return false;
+  }
+  if (dfs("home")) {
+    return [...path];
+  } else {
+    return null;
+  }
+}
 function getNumCrackingPrograms(ns) {
   let numCrackingProgramsAvailable = 0;
   if (ns.fileExists("bruteSSH.exe", "home")) {
@@ -72,6 +93,25 @@ function scanForAllServers(ns, startingPoint = "home") {
 }
 
 // servers/home/new_sniffer.js
+function getTargetConnectionPath(pathArr) {
+  if (!Array.isArray(pathArr) || pathArr.length === 0) {
+    return ["[Path] No path found."];
+  }
+  const rainbowColors = [196, 202, 208, 220, 46, 51, 27, 93, 201];
+  const cyan = "\x1B[36m";
+  const reset = "\x1B[0m";
+  let colored = [];
+  for (let i = 0; i < pathArr.length; i++) {
+    if (i === 0 || i === pathArr.length - 1) {
+      colored.push(`${cyan}${pathArr[i]}${reset}`);
+    } else {
+      let colorIdx = Math.floor((i - 1) * (rainbowColors.length - 1) / (pathArr.length - 2));
+      let colorCode = rainbowColors[colorIdx];
+      colored.push(`\x1B[38;5;${colorCode}m${pathArr[i]}${reset}`);
+    }
+  }
+  return colored;
+}
 function printServerSummary(ns, server, idx, total) {
   const cyan = "\x1B[36m";
   const green = "\x1B[32m";
@@ -104,6 +144,8 @@ function printServerInfo(ns, target, index = null, total = null) {
   const pastelPink = "\x1B[38;5;218m";
   const peach = "\x1B[38;5;215m";
   const runningScripts = ns.ps(target);
+  const pathArr = findPathToServer(ns, target);
+  const lock = ns.hasRootAccess(target) ? "\u{1F513}" : "\u{1F512}";
   const label = (txt) => `${pastelPink}${txt.padEnd(30)}${reset}`;
   const value = (txt, color = reset) => `${color}${txt}${reset}`;
   const growMins = Math.floor(ns.getGrowTime(target) / 1e3 / 60);
@@ -127,8 +169,21 @@ Showing server ${index} of ${total}: ${cyan}${target}${reset}`);
   ns.tprintf("%s%s minutes %s seconds", label("Hack time:"), value(hackMins, cyan), value(hackSecs, cyan));
   ns.tprintf("%s%s / %s", label("Money (Avail/Max):"), value(`$${ns.formatNumber(ns.getServerMoneyAvailable(target), 1, 1e3, true)}`, cyan), value(`$${ns.formatNumber(ns.getServerMaxMoney(target), 2, 1e3, true)}`, green));
   ns.tprintf("%s%s / %s", label("RAM (Used/Total):"), value(ns.formatRam(ns.getServerUsedRam(target)), ns.getServerUsedRam(target) === ns.getServerMaxRam(target) ? red : cyan), value(ns.formatRam(ns.getServerMaxRam(target)), green));
-  const lock = ns.hasRootAccess(target) ? "\u{1F513}" : "\u{1F512}";
   ns.tprintf("%s%s %s%s", label("Root access status:"), lock, ns.hasRootAccess(target) ? value("Granted", green) : value("Not Granted", red), reset);
+  const colorizedPathArr = getTargetConnectionPath(pathArr);
+  const chunkSize = 4;
+  const arrow = `${cyan}->${reset}`;
+  const labelText = label("Path to target:");
+  const labelPad = label("");
+  for (let i = 0; i < colorizedPathArr.length; i += chunkSize) {
+    const isLastChunk = i + chunkSize >= colorizedPathArr.length;
+    let chunkArr = colorizedPathArr.slice(i, i + chunkSize);
+    let chunk = chunkArr.join(` ${arrow} `);
+    if (!isLastChunk) {
+      chunk = `${chunk} ${arrow}`;
+    }
+    ns.tprintf("%s%s", i === 0 ? labelText : labelPad, chunk);
+  }
   if (runningScripts.length === 0) {
     ns.tprintf("%s%s", label("Running scripts:"), value("None detected.", green));
   } else {

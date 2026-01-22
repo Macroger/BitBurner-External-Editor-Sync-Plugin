@@ -83,16 +83,17 @@ function sortQueueByScore(ns, queue) {
   queue.sort((a, b) => {
     const aName = a.name || a;
     const bName = b.name || b;
-    const aMaxMoney = ns.getServerMaxMoney(aName);
-    const aGrowth = ns.getServerGrowth(aName);
-    const aMinSec = ns.getServerMinSecurityLevel(aName);
-    const aScore = aMaxMoney > 0 && aMinSec > 0 ? aMaxMoney * aGrowth / aMinSec : -Infinity;
-    const bMaxMoney = ns.getServerMaxMoney(bName);
-    const bGrowth = ns.getServerGrowth(bName);
-    const bMinSec = ns.getServerMinSecurityLevel(bName);
-    const bScore = bMaxMoney > 0 && bMinSec > 0 ? bMaxMoney * bGrowth / bMinSec : -Infinity;
+    const aScore = getServerScore(ns, aName);
+    const bScore = getServerScore(ns, bName);
     return bScore - aScore;
   });
+}
+function getServerScore(ns, target) {
+  const maxMoney = ns.getServerMaxMoney(target);
+  const growth = ns.getServerGrowth(target);
+  const minSec = ns.getServerMinSecurityLevel(target);
+  const score = maxMoney > 0 && minSec > 0 ? maxMoney * growth / minSec : -Infinity;
+  return score;
 }
 
 // servers/home/uberServerCoordinator.js

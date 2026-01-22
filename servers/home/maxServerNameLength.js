@@ -1,27 +1,31 @@
 /** @param {NS} ns */
-export async function main(ns) {
+import { scanForAllServers } from "./myFunctions.js";
+export async function main(ns) 
+{
 
-  //let foundTargets = [];
-  serverScan(ns.args[0]);
-
-  function serverScan(target)
+  function enumerateServerNameLength(servers)
   {
+    let newNameLength = 0;
     let maxNameLengthDetected = 0;
-    let servers = ns.scan(target);
+    let serverWithMaxNameLength = "";
 
     for(let potentialTarget of servers)
     {
-      maxNameLengthDetected = (maxNameLengthDetected < potentialTarget.length? potentialTarget.length : maxNameLengthDetected);
-      ns.tprintf("Found server: %s. Max name length so far: %d", potentialTarget, maxNameLengthDetected);      
-
-      const moreServers = ns.scan(potentialTarget);
-
-      for(let x of moreServers)
+      newNameLength = potentialTarget.name.length;
+      if(newNameLength > maxNameLengthDetected)
       {
-        ns.tprintf("Found server: %s.", x);
-        // Determine the length the server name.
-
-      }
+        maxNameLengthDetected = newNameLength;
+        serverWithMaxNameLength = potentialTarget;
+      }      
     }
+    // Provide a final report after scanning all servers
+    ns.tprint(`Maximum server name length detected: ${maxNameLengthDetected} on server: ${serverWithMaxNameLength.name}`);
   }
+
+  const servers = scanForAllServers(ns);
+
+  ns.tprint(`Total servers scanned: ${servers.length}`);
+
+  enumerateServerNameLength(servers);  
+
 }

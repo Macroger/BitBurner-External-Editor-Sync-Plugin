@@ -114,39 +114,43 @@ function launchScriptAttack(ns, scriptName, target, source, goal, maxAllowedThre
     return resultObj;
   }
 }
-function getNumThreadsToReachGoal(ns, scriptName, goal, target, source = "remote") {
+function getNumThreadsToReachGoal(ns, scriptName, goal, target, source = "", maxThreads = 25e3) {
   const sectionName = "getNumThreadsToReachGoal";
-  let server = source == "remote" ? ns.getServer(target) : ns.getServer(source);
-  const serverCpuCount = server.cpuCores;
+  if (source == "") {
+    source = ns.getHostname();
+  }
+  if (ns.serverExists(source) == false) {
+    ns.tprintf("[%s]-ERROR: Unable to find host.", sectionName);
+    ns.exit();
+  }
+  if (ns.serverExists(target) == false) {
+    ns.tprintf("[%s]-ERROR: Unable to find server.", sectionName);
+    ns.exit();
+  }
+  const sourceServer = ns.getServer(source);
+  const serverCpuCount = sourceServer.cpuCores;
   const localPrefix = "local_";
   const weakenScriptName = localPrefix + "weaken.js";
   const hackScriptName = localPrefix + "hack.js";
   const growScriptName = localPrefix + "grow.js";
   let threadsRequired = 0;
-  const THREAD_CAP = 1e4;
+  const THREAD_CAP = maxThreads;
   if (scriptName == weakenScriptName) {
     const valueOfOneWeaken = ns.weakenAnalyze(1, serverCpuCount);
-    const serverDecreaseRequired = ns.getServerSecurityLevel(target) - ns.getServerMinSecurityLevel(target);
+    const serverDecreaseRequired = ns.getServerSecurityLevel(target) - goal;
     threadsRequired = serverDecreaseRequired / valueOfOneWeaken;
   } else if (scriptName == hackScriptName) {
     threadsRequired = ns.hackAnalyzeThreads(target, goal);
   } else if (scriptName == growScriptName) {
-    let safeGoal = Math.max(goal, 1);
-    threadsRequired = ns.growthAnalyze(target, safeGoal, serverCpuCount);
-    if (threadsRequired > THREAD_CAP) {
-      ns.printf("[%s]-WARN: Calculated grow threads (%d) exceeds cap (%d) for %s. Capping to %d.", sectionName, threadsRequired, THREAD_CAP, target, THREAD_CAP);
-      threadsRequired = THREAD_CAP;
-    }
+    threadsRequired = ns.growthAnalyze(target, goal, serverCpuCount);
   } else {
     ns.printf("[%s]-ERROR: Unknown script name %s provided for thread calculation on %s.", sectionName, scriptName, target);
     threadsRequired = 0;
   }
   let result = Math.ceil(threadsRequired);
   if (result > THREAD_CAP) {
-    ns.printf("[%s]-WARN: Calculated threads (%d) exceeds cap (%d) for %s. Capping to %d.", sectionName, result, THREAD_CAP, target, THREAD_CAP);
     result = THREAD_CAP;
   }
-  ns.printf("[%s]-INFO: Number of threads required to reach goal of %d on %s: %d", sectionName, goal, target, result);
   return result;
 }
 function getNumCrackingPrograms(ns) {
@@ -225,7 +229,8 @@ function decideServerAction(ns, target, source = target) {
   let curSec = ns.getServerSecurityLevel(target);
   let maxMoney = ns.getServerMaxMoney(target);
   let curMoney = ns.getServerMoneyAvailable(target);
-  const weakenThreshold = Math.max(minSec * 1.05, minSec + 2);
+  const weakenThresholdPercent = 1.15;
+  const weakenThreshold = Math.max(minSec * weakenThresholdPercent, minSec + 2);
   if (curSec > weakenThreshold) {
     const cpuCores = ns.getServer(source).cpuCores || 1;
     const weakenEffect = ns.weakenAnalyze(1, cpuCores);

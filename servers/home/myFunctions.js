@@ -1,3 +1,37 @@
+/**
+ * Finds the path from 'home' to the specified target server as an array of hostnames.
+ * Uses DFS to search the network graph.
+ * @param {NS} ns - The Bitburner Netscript API object.
+ * @param {string} target - The hostname of the server to find a path to.
+ * @returns {string[]|null} - Array of hostnames from 'home' to target, or null if not found.
+ */
+export function findPathToServer(ns, target) {
+  const visited = new Set();
+  const path = [];
+  function dfs(current) 
+  {
+    visited.add(current);
+    path.push(current);
+    if (current === target) return true;
+    for (const neighbor of ns.scan(current)) 
+    {
+      if (!visited.has(neighbor)) 
+      {
+        if (dfs(neighbor)) return true;
+      }
+    }
+    path.pop();
+    return false;
+  }
+  if (dfs("home")) 
+  {
+    return [...path];
+  } 
+  else 
+  {
+    return null;
+  }
+}
 
 /** @param {NS} ns */
 
@@ -311,17 +345,38 @@ export function getBestBotnetTarget(ns)
    *
    * @export
    * @param {*} ns - The Bitburner Netscript API object.
-   * @param {*} scriptName - The name of the script to be executed.
-   * @param {*} goal - The target goal value (e.g., money to hack, security to weaken).
-   * @param {*} target - The hostname of the server to target.
-   * @param {*} source - The hostname of the server from which the script will be run.
+   * @param {string} scriptName - The name of the script to be executed.
+   * @param {number} goal - The target goal value (e.g., money to hack, security to weaken).
+   * @param {string} target - The hostname of the server to target. 
+   * @param {string} source - The hostname of the server from which the script will be run.
+   * @param {number} maxThreads - The maximum number of threads allowed.
    * @returns {number} - The number of threads required to reach the goal.
    */
-  export function getNumThreadsToReachGoal(ns, scriptName, goal, target, source="remote")
+  export function getNumThreadsToReachGoal(ns, scriptName, goal, target, source = "", maxThreads = 25000)
   {
     const sectionName = "getNumThreadsToReachGoal";
-    let server = (source == "remote" ? ns.getServer(target) : ns.getServer(source));
-    const serverCpuCount = server.cpuCores;
+
+    if(source == "")
+    {
+      source = ns.getHostname();
+    }    
+
+    // Check that source is valid
+    if(ns.serverExists(source) == false)
+    {
+      ns.tprintf("[%s]-ERROR: Unable to find host.", sectionName);
+      ns.exit();
+    }
+
+    // Check that target is valid
+     if(ns.serverExists(target) == false)
+    {
+      ns.tprintf("[%s]-ERROR: Unable to find server.", sectionName);
+      ns.exit();
+    }
+
+    const sourceServer = ns.getServer(source);
+    const serverCpuCount = sourceServer.cpuCores;
 
     const localPrefix = "local_";
 
@@ -329,16 +384,18 @@ export function getBestBotnetTarget(ns)
     const hackScriptName = localPrefix + "hack.js";
     const growScriptName =  localPrefix + "grow.js";
 
-    //ns.printf("[%s]-INFO: Goal: %d", sectionName, goal);
-
     let threadsRequired = 0;
-    const THREAD_CAP = 10000;
+    const THREAD_CAP = maxThreads;
 
     if(scriptName == weakenScriptName)
     {
-      // Always reduce security down to minimum value.
+      // Determine what one thread of weaken will do for us.
       const valueOfOneWeaken = ns.weakenAnalyze(1, serverCpuCount);
-      const serverDecreaseRequired = ns.getServerSecurityLevel(target) - ns.getServerMinSecurityLevel(target);
+
+      // Get the amount of security that needs to be reduced.
+      const serverDecreaseRequired = ns.getServerSecurityLevel(target) - goal;
+
+      // Finally, calculate the number of threads required to reduce the security by the required amount.
       threadsRequired = serverDecreaseRequired / valueOfOneWeaken;
     }
     else if(scriptName == hackScriptName)
@@ -346,14 +403,8 @@ export function getBestBotnetTarget(ns)
       threadsRequired = ns.hackAnalyzeThreads(target, goal);
     }
     else if(scriptName == growScriptName)
-    {
-      // Clamp goal to at least 1 to avoid huge multipliers if current money is 0 or very low
-      let safeGoal = Math.max(goal, 1);
-      threadsRequired = ns.growthAnalyze(target, safeGoal, serverCpuCount);
-      if (threadsRequired > THREAD_CAP) {
-        ns.printf("[%s]-WARN: Calculated grow threads (%d) exceeds cap (%d) for %s. Capping to %d.", sectionName, threadsRequired, THREAD_CAP, target, THREAD_CAP);
-        threadsRequired = THREAD_CAP;
-      }
+    {    
+      threadsRequired = ns.growthAnalyze(target, goal, serverCpuCount);      
     }
     else
     {
@@ -361,14 +412,14 @@ export function getBestBotnetTarget(ns)
       threadsRequired = 0;
     }
 
-    // General cap for all thread calculations
+    // Ceiling the result to avoid fractional threads. Rounds up any fractional threads.
     let result = Math.ceil(threadsRequired);
-    if (result > THREAD_CAP) {
-      ns.printf("[%s]-WARN: Calculated threads (%d) exceeds cap (%d) for %s. Capping to %d.", sectionName, result, THREAD_CAP, target, THREAD_CAP);
+
+    // General cap for all thread calculations
+    if (result > THREAD_CAP) 
+    {
       result = THREAD_CAP;
     }
-
-    ns.printf("[%s]-INFO: Number of threads required to reach goal of %d on %s: %d", sectionName, goal, target, result);
 
     return result;
   }
@@ -703,8 +754,10 @@ export function getBestBotnetTarget(ns)
       let maxMoney = ns.getServerMaxMoney(target);
       let curMoney = ns.getServerMoneyAvailable(target);
 
-      // Threshold for when to begin weakening: max of 5% above minSec or minSec + 2
-      const weakenThreshold = Math.max(minSec * 1.05, minSec + 2);
+      const weakenThresholdPercent = 1.15;
+
+      // Threshold for when to begin weakening: max of 15% above minSec or minSec + 2
+      const weakenThreshold = Math.max(minSec * weakenThresholdPercent, minSec + 2);
 
       // Only return 'weaken' if the security difference is at least the effect of one weaken thread
       if (curSec > weakenThreshold) 
@@ -715,6 +768,7 @@ export function getBestBotnetTarget(ns)
           {
               return "weaken";
           }
+
           // If not enough to justify a weaken, fall through to grow/hack logic
       }
 
@@ -846,16 +900,25 @@ export function sortQueueByScore(ns, queue) {
     queue.sort((a, b) => {
         const aName = a.name || a;
         const bName = b.name || b;
-        const aMaxMoney = ns.getServerMaxMoney(aName);
-        const aGrowth = ns.getServerGrowth(aName);
-        const aMinSec = ns.getServerMinSecurityLevel(aName);
-        const aScore = (aMaxMoney > 0 && aMinSec > 0) ? (aMaxMoney * aGrowth) / aMinSec : -Infinity;
-        const bMaxMoney = ns.getServerMaxMoney(bName);
-        const bGrowth = ns.getServerGrowth(bName);
-        const bMinSec = ns.getServerMinSecurityLevel(bName);
-        const bScore = (bMaxMoney > 0 && bMinSec > 0) ? (bMaxMoney * bGrowth) / bMinSec : -Infinity;
+        const aScore = getServerScore(ns, aName);
+        const bScore = getServerScore(ns, bName);
         return bScore - aScore;
     });
+}
+
+/**
+ * Returns the calculated score of a server based on its max money, growth rate, and minimum security level.
+ * @param {*} ns 
+ * @param {string} target - The hostname of the server to evaluate.
+ * @returns 
+ */
+export function getServerScore(ns, target)
+{
+  const maxMoney = ns.getServerMaxMoney(target);
+  const growth = ns.getServerGrowth(target);
+  const minSec = ns.getServerMinSecurityLevel(target);
+  const score = (maxMoney > 0 && minSec > 0) ? (maxMoney * growth) / minSec : -Infinity;
+  return score;
 }
 
   
